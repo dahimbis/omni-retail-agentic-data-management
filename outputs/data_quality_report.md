@@ -23,6 +23,12 @@ Generated from the curated DuckDB model and DQ001 to DQ013 checks.
 
 ## Exception count by severity
 
+| severity | exception_count |
+| --- | --- |
+| High | 12 |
+| Medium | 9 |
+| Low | 0 |
+
 ![Exception count by severity](charts/dq_exceptions_by_severity.png)
 
 ## Rule results

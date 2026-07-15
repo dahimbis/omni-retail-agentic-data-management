@@ -1,12 +1,10 @@
 # Business Question Answers
 
-Answers are generated with SQL from `sql/business_questions.sql` against the curated model. Values are not hard-coded. Charts are created automatically each time the pipeline runs.
+Answers are generated with SQL from `sql/business_questions.sql` against the curated model. Values are not hard-coded. Each section shows the table first, then the chart. Charts refresh when the pipeline runs.
 
 ## Q1. What is completed revenue by month?
 
 Trusted completed orders only (valid customer and product IDs, quantity greater than zero).
-
-![Q1 completed revenue by month](charts/q1_revenue_by_month.png)
 
 | month | completed_revenue | completed_order_count |
 | --- | --- | --- |
@@ -15,15 +13,15 @@ Trusted completed orders only (valid customer and product IDs, quantity greater 
 | 2025-05 | 446.2 | 9 |
 
 
-## Q2. Who are the top 10 customers by completed order value?
+![Q1 completed revenue by month](charts/q1_revenue_by_month.png)
 
-![Q2 top customers](charts/q2_top_customers.png)
+## Q2. Who are the top 10 customers by completed order value?
 
 | customer_key | full_name | loyalty_tier | completed_order_value | completed_orders |
 | --- | --- | --- | --- | --- |
 | C010 | Lucas Taylor | Gold | 194.98 | 2 |
-| C012 | James Thomas | Bronze | 133.98 | 2 |
 | C016 | Henry Martin | Silver | 133.98 | 2 |
+| C012 | James Thomas | Bronze | 133.98 | 2 |
 | C007 | Sophia Miller | Gold | 99.98 | 2 |
 | C002 | Liam Nguyen | Silver | 89.99 | 2 |
 | C009 | Isabella Moore | Bronze | 83.25 | 2 |
@@ -32,6 +30,8 @@ Trusted completed orders only (valid customer and product IDs, quantity greater 
 | C003 | Noah Williams | Bronze | 73.75 | 2 |
 | C013 | Charlotte Jackson | Silver | 59.0 | 1 |
 
+
+![Q2 top customers](charts/q2_top_customers.png)
 
 ## Q3. Which orders have payment mismatches, missing payments, invalid customer references, invalid product references, or suspicious quantities?
 
@@ -46,8 +46,6 @@ Trusted completed orders only (valid customer and product IDs, quantity greater 
 
 ## Q4. Which states have the highest completed revenue?
 
-![Q4 completed revenue by state](charts/q4_revenue_by_state.png)
-
 | state | completed_revenue | completed_order_count |
 | --- | --- | --- |
 | MA | 278.23 | 4 |
@@ -58,6 +56,8 @@ Trusted completed orders only (valid customer and product IDs, quantity greater 
 | NY | 117.0 | 2 |
 | FL | 65.99 | 3 |
 
+
+![Q4 completed revenue by state](charts/q4_revenue_by_state.png)
 
 ## Q5. Is there any visible relationship between negative support tickets and order or payment exceptions?
 

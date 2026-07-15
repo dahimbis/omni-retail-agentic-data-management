@@ -13,6 +13,14 @@ from src.ingest import OUTPUT_DIR
 SQL_DIR = Path(__file__).resolve().parents[1] / "sql"
 CHARTS_DIR = OUTPUT_DIR / "charts"
 
+# Simple professional palette (no purple glow stack)
+COLOR_PRIMARY = "#2F6F8F"  # revenue / single-series charts
+COLOR_TRUSTED = "#2E7D4F"  # healthy / trusted
+COLOR_EXCEPTION = "#C45C26"  # problems needing review
+COLOR_HIGH = "#B33A3A"
+COLOR_MEDIUM = "#C45C26"
+COLOR_LOW = "#6B7280"
+
 
 def _md_table(df: pd.DataFrame) -> str:
     if df is None or df.empty:
@@ -61,16 +69,18 @@ def _save_bar_chart(
     ylabel: str,
     filename: str,
     horizontal: bool = False,
+    colors: str | list[str] | None = None,
 ) -> Path:
     CHARTS_DIR.mkdir(parents=True, exist_ok=True)
     path = CHARTS_DIR / filename
     fig, ax = plt.subplots(figsize=(8, 4.5))
+    bar_colors = colors if colors is not None else COLOR_PRIMARY
     if horizontal:
-        ax.barh(categories, values, color="#2F6F8F")
+        ax.barh(categories, values, color=bar_colors)
         ax.set_xlabel(ylabel)
         ax.invert_yaxis()
     else:
-        ax.bar(categories, values, color="#2F6F8F")
+        ax.bar(categories, values, color=bar_colors)
         ax.set_ylabel(ylabel)
         ax.tick_params(axis="x", rotation=0)
     ax.set_title(title)
@@ -92,6 +102,7 @@ def _write_charts(bq_frames: list[pd.DataFrame]) -> dict[str, str]:
             title="Q1: Completed revenue by month",
             ylabel="Revenue ($)",
             filename="q1_revenue_by_month.png",
+            colors=COLOR_PRIMARY,
         )
         images["q1"] = "charts/q1_revenue_by_month.png"
 
@@ -107,6 +118,7 @@ def _write_charts(bq_frames: list[pd.DataFrame]) -> dict[str, str]:
             ylabel="Completed order value ($)",
             filename="q2_top_customers.png",
             horizontal=True,
+            colors=COLOR_PRIMARY,
         )
         images["q2"] = "charts/q2_top_customers.png"
 
@@ -118,14 +130,14 @@ def _write_charts(bq_frames: list[pd.DataFrame]) -> dict[str, str]:
             title="Q4: Completed revenue by state",
             ylabel="Revenue ($)",
             filename="q4_revenue_by_state.png",
+            colors=COLOR_PRIMARY,
         )
         images["q4"] = "charts/q4_revenue_by_state.png"
 
     return images
 
 
-def _write_order_health_chart(con: duckdb.DuckDBPyConnection) -> Path:
-    """Trusted completed orders vs orders with exceptions (README snapshot)."""
+def _order_health_counts(con: duckdb.DuckDBPyConnection) -> tuple[int, int]:
     trusted = con.execute(
         """
         SELECT count(*) FROM fact_order
@@ -161,14 +173,38 @@ def _write_order_health_chart(con: duckdb.DuckDBPyConnection) -> Path:
         SELECT count(DISTINCT order_key) FROM flagged
         """
     ).fetchone()[0]
+    return int(trusted), int(exception_orders)
 
+
+def _write_order_health_chart(trusted: int, exception_orders: int) -> Path:
+    """Trusted completed orders vs orders with exceptions (README snapshot)."""
     return _save_bar_chart(
         categories=["Trusted completed orders", "Orders with exceptions"],
         values=[float(trusted), float(exception_orders)],
         title="Order health snapshot",
         ylabel="Order count",
         filename="readme_order_health.png",
+        colors=[COLOR_TRUSTED, COLOR_EXCEPTION],
     )
+
+
+def _section_with_table_then_chart(
+    title: str,
+    intro: str | None,
+    table_df: pd.DataFrame | None,
+    chart_path: str | None,
+    chart_alt: str,
+) -> list[str]:
+    parts = [f"## {title}", ""]
+    if intro:
+        parts.extend([intro, ""])
+    if table_df is not None:
+        parts.extend([_md_table(table_df), ""])
+    else:
+        parts.extend(["_Query missing._\n", ""])
+    if chart_path:
+        parts.extend([f"![{chart_alt}]({chart_path})", ""])
+    return parts
 
 
 def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
@@ -205,19 +241,68 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
     failed = int((dq["status"] == "FAIL").sum()) if not dq.empty else 0
 
     CHARTS_DIR.mkdir(parents=True, exist_ok=True)
-    _write_order_health_chart(con)
+    trusted_n, exception_n = _order_health_counts(con)
+    _write_order_health_chart(trusted_n, exception_n)
+
     sev = (
         exceptions.groupby("severity").size().reindex(["High", "Medium", "Low"]).fillna(0)
         if not exceptions.empty
         else pd.Series({"High": 0, "Medium": 0, "Low": 0})
     )
+    sev_df = pd.DataFrame(
+        {"severity": sev.index.astype(str), "exception_count": sev.values.astype(int)}
+    )
     _save_bar_chart(
-        categories=[str(x) for x in sev.index.tolist()],
-        values=[float(x) for x in sev.values.tolist()],
+        categories=sev_df["severity"].tolist(),
+        values=sev_df["exception_count"].astype(float).tolist(),
         title="Exception count by severity",
         ylabel="Count",
         filename="dq_exceptions_by_severity.png",
+        colors=[COLOR_HIGH, COLOR_MEDIUM, COLOR_LOW],
     )
+
+    # Keep a small snapshot table next to the README chart path for regenerable docs
+    snapshot_df = pd.DataFrame(
+        {
+            "category": ["Trusted completed orders", "Orders with exceptions"],
+            "order_count": [trusted_n, exception_n],
+        }
+    )
+    (OUTPUT_DIR / "order_health_snapshot.md").write_text(
+        "\n".join(
+            [
+                "# Order health snapshot",
+                "",
+                _md_table(snapshot_df),
+                "![Order health snapshot](charts/readme_order_health.png)",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    # Keep README snapshot table in sync with generated counts
+    readme_path = Path(__file__).resolve().parents[1] / "README.md"
+    if readme_path.exists():
+        readme = readme_path.read_text(encoding="utf-8")
+        start = readme.find("## Snapshot")
+        end = readme.find("## Repository structure")
+        if start != -1 and end != -1 and start < end:
+            snapshot_block = "\n".join(
+                [
+                    "## Snapshot",
+                    "",
+                    "This snapshot is generated by the pipeline. Exact counts first, then the chart "
+                    "(green = trusted, orange = exceptions).",
+                    "",
+                    _md_table(snapshot_df).rstrip(),
+                    "",
+                    "![Order health snapshot](outputs/charts/readme_order_health.png)",
+                    "",
+                    "",
+                ]
+            )
+            readme_path.write_text(readme[:start] + snapshot_block + readme[end:], encoding="utf-8")
 
     dq_report = "\n".join(
         [
@@ -234,6 +319,7 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
             "",
             "## Exception count by severity",
             "",
+            _md_table(sev_df),
             "![Exception count by severity](charts/dq_exceptions_by_severity.png)",
             "",
             "## Rule results",
@@ -256,45 +342,48 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
         "# Business Question Answers",
         "",
         "Answers are generated with SQL from `sql/business_questions.sql` "
-        "against the curated model. Values are not hard-coded. Charts are "
-        "created automatically each time the pipeline runs.",
-        "",
-        "## Q1. What is completed revenue by month?",
-        "",
-        "Trusted completed orders only (valid customer and product IDs, quantity greater than zero).",
+        "against the curated model. Values are not hard-coded. Each section shows "
+        "the table first, then the chart. Charts refresh when the pipeline runs.",
         "",
     ]
-    if "q1" in images:
-        sections.extend([f"![Q1 completed revenue by month]({images['q1']})", ""])
     sections.extend(
-        [
-            _md_table(bq_frames[0]) if len(bq_frames) > 0 else "_Query missing._\n",
-            "",
-            "## Q2. Who are the top 10 customers by completed order value?",
-            "",
-        ]
+        _section_with_table_then_chart(
+            "Q1. What is completed revenue by month?",
+            "Trusted completed orders only (valid customer and product IDs, quantity greater than zero).",
+            bq_frames[0] if len(bq_frames) > 0 else None,
+            images.get("q1"),
+            "Q1 completed revenue by month",
+        )
     )
-    if "q2" in images:
-        sections.extend([f"![Q2 top customers]({images['q2']})", ""])
+    sections.extend(
+        _section_with_table_then_chart(
+            "Q2. Who are the top 10 customers by completed order value?",
+            None,
+            bq_frames[1] if len(bq_frames) > 1 else None,
+            images.get("q2"),
+            "Q2 top customers",
+        )
+    )
     sections.extend(
         [
-            _md_table(bq_frames[1]) if len(bq_frames) > 1 else "_Query missing._\n",
-            "",
             "## Q3. Which orders have payment mismatches, missing payments, "
             "invalid customer references, invalid product references, or suspicious quantities?",
             "",
             _md_table(bq_frames[2]) if len(bq_frames) > 2 else "_Query missing._\n",
             "",
-            "## Q4. Which states have the highest completed revenue?",
-            "",
         ]
     )
-    if "q4" in images:
-        sections.extend([f"![Q4 completed revenue by state]({images['q4']})", ""])
+    sections.extend(
+        _section_with_table_then_chart(
+            "Q4. Which states have the highest completed revenue?",
+            None,
+            bq_frames[3] if len(bq_frames) > 3 else None,
+            images.get("q4"),
+            "Q4 completed revenue by state",
+        )
+    )
     sections.extend(
         [
-            _md_table(bq_frames[3]) if len(bq_frames) > 3 else "_Query missing._\n",
-            "",
             "## Q5. Is there any visible relationship between negative support tickets "
             "and order or payment exceptions?",
             "",
