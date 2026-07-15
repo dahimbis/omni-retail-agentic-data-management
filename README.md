@@ -55,7 +55,7 @@ flowchart TD
   D --> F[Data quality checks]
   E --> F
 
-  F --> G[Revenue-eligible analytics]
+  D --> G[Revenue-eligible analytics]
   F --> H[Exception report]
 
   G --> I[Business answers]
@@ -69,7 +69,7 @@ How to read this:
 
 1. **Ingest** loads all CSV and JSONL files into DuckDB.
 2. **Clean and transform** builds curated tables with valid foreign keys, and also keeps a second set of cleaned tables for audit. Those audit tables still include orders or payments with bad customer, product, or order IDs.
-3. **Data quality checks** review both curated and audit tables, then write analytics for revenue-eligible data and an exception list for problems.
+3. **Data quality checks** review both curated and audit tables and write an exception list. Revenue-eligible analytics read from the curated tables.
 4. **Business answers** mainly use the curated tables. Question 3 uses the centralized `vw_order_exceptions` audit view.
 5. **Review** means a person checks the reports. If a total or rule looks wrong, they update the cleaning logic or a quality rule and run the pipeline again.
 
