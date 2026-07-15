@@ -4,6 +4,15 @@ This project builds a local data pipeline for OmniRetail customer-360 and order 
 
 The pipeline is modular so each layer has a clear job: load data, clean and model it, validate it, then report on it.
 
+## Project outcome
+
+The pipeline processes the supplied OmniRetail datasets and produces:
+
+- Curated customer, product, order, payment, and support-ticket tables
+- Data-quality and source-to-curated reconciliation reports
+- SQL-generated answers to the five business questions
+- Ten automated validation tests covering transformations, quality rules, analytics, and generated outputs
+
 ## Snapshot
 
 The pipeline generates mutually exclusive counts for completed orders that are clear and completed orders requiring review. See `outputs/order_health_snapshot.md` for the current table. The chart refreshes on every pipeline run without modifying this README.
