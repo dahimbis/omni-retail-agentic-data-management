@@ -124,6 +124,53 @@ def _write_charts(bq_frames: list[pd.DataFrame]) -> dict[str, str]:
     return images
 
 
+def _write_order_health_chart(con: duckdb.DuckDBPyConnection) -> Path:
+    """Trusted completed orders vs orders with exceptions (README snapshot)."""
+    trusted = con.execute(
+        """
+        SELECT count(*) FROM fact_order
+        WHERE lower(order_status) = 'completed' AND quantity > 0
+        """
+    ).fetchone()[0]
+    exception_orders = con.execute(
+        """
+        WITH flagged AS (
+          SELECT order_key FROM int_order WHERE NOT valid_customer
+          UNION
+          SELECT order_key FROM int_order WHERE NOT valid_product
+          UNION
+          SELECT order_key FROM int_order
+          WHERE lower(order_status) = 'completed'
+            AND (quantity IS NULL OR quantity <= 0)
+          UNION
+          SELECT o.order_key
+          FROM int_order o
+          JOIN int_payment p ON o.order_key = p.order_key
+          WHERE lower(o.order_status) = 'completed'
+            AND lower(p.payment_status) = 'settled'
+            AND abs(p.payment_amount - o.gross_order_amount) > 0.01
+          UNION
+          SELECT o.order_key
+          FROM int_order o
+          LEFT JOIN int_payment p
+            ON o.order_key = p.order_key
+           AND lower(p.payment_status) IN ('settled', 'refunded')
+          WHERE lower(o.order_status) = 'completed'
+            AND p.payment_key IS NULL
+        )
+        SELECT count(DISTINCT order_key) FROM flagged
+        """
+    ).fetchone()[0]
+
+    return _save_bar_chart(
+        categories=["Trusted completed orders", "Orders with exceptions"],
+        values=[float(trusted), float(exception_orders)],
+        title="Order health snapshot",
+        ylabel="Order count",
+        filename="readme_order_health.png",
+    )
+
+
 def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -157,8 +204,8 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
     passed = int((dq["status"] == "PASS").sum()) if not dq.empty else 0
     failed = int((dq["status"] == "FAIL").sum()) if not dq.empty else 0
 
-    # Optional small severity chart for DQ report
     CHARTS_DIR.mkdir(parents=True, exist_ok=True)
+    _write_order_health_chart(con)
     sev = (
         exceptions.groupby("severity").size().reindex(["High", "Medium", "Low"]).fillna(0)
         if not exceptions.empty
