@@ -38,17 +38,32 @@ omni-retail-agentic-data-management/
 
 ```mermaid
 flowchart TD
-  A[Raw files in input_data] --> B[Ingest]
+  A[Raw files in input_data] --> B[Ingest to DuckDB]
   B --> C[Clean and transform]
+
   C --> D[Curated tables]
-  D --> E[Data quality checks]
-  E --> F[Reports and business answers]
+  C --> E[Intermediate tables]
+
+  D --> F[Data quality checks]
+  E --> F
+
+  F --> G[Trusted analytics]
+  F --> H[Exception report]
+
+  G --> I[Business answers]
+  H --> I
+
+  I --> J[Review results]
+  J -->|Fix rule or transform if needed| C
 ```
 
-1. **Ingest** loads every source file into staging tables. Important text fields stay as strings at this step so formatting is not lost before validation.
-2. **Transform** applies cleaning rules and builds dimensions and facts.
-3. **Quality checks** score rules and write row-level exceptions.
-4. **Reporting** runs the business SQL and writes the output files under `outputs/`.
+How to read this:
+
+1. **Ingest** loads all CSV and JSONL files into DuckDB.
+2. **Clean and transform** splits work into curated tables (trusted) and intermediate tables (kept for audit, including bad keys).
+3. **Data quality checks** use both paths, then produce trusted analytics and an exception report.
+4. **Business answers** use the curated model; question 3 also uses exception findings.
+5. **Review** can feed back into transform or quality rules if a check or total looks wrong, then the pipeline is rerun.
 
 ## What each layer does
 
