@@ -4,7 +4,7 @@
 
 - **Cursor (Auto agent router)** was my primary agentic coding assistant for planning, implementation, debugging, tests, documentation, and report presentation.
 - **Claude Code** was used to review structure, transformation logic, and submission completeness.
-- **Codex** was used as an additional cross-check of implementation and documentation.
+- **ChatGPT (Sol 5.6)** was used as an additional cross-check of implementation, documentation, and reconciliation decisions.
 
 ## Key prompts and task instructions
 

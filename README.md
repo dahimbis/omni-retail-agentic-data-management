@@ -296,7 +296,7 @@ The pipeline and tests are separate commands. `python -m src.pipeline` generates
 
 ## Build process notes
 
-Cursor (Auto agent router) was used to plan, generate, and debug the pipeline. Claude Code and Codex were used for review and cross-checks. Generated code was run and verified before acceptance. Details are in `AI_USAGE.md`.
+Cursor (Auto agent router) was used to plan, generate, and debug the pipeline. Claude Code and ChatGPT (Sol 5.6) were used for review and cross-checks. Generated code was run and verified before acceptance. Details are in `AI_USAGE.md`.
 
 ## Assumptions and limitations
 
