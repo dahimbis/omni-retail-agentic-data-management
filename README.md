@@ -240,7 +240,25 @@ Each run rebuilds the DuckDB database and report files from whatever is currentl
 python -m pytest tests/ -q
 ```
 
-Tests check source-to-curated reconciliation, input schemas, curated columns, all five business answers, all DQ rule IDs, intentional defect keys, quarantined-payment visibility, generated report files, and bad timestamp preservation.
+This prints a summary such as `9 passed in 3.06s`. Runtime varies by computer. To display every test name while it runs:
+
+```bash
+python -m pytest tests/ -v
+```
+
+The nine tests cover:
+
+1. Country and state standardization
+2. Customer duplicate resolution
+3. Order duplicate resolution, references, and amount variance
+4. Required input schema validation
+5. Source-to-curated row reconciliation and referential integrity
+6. DQ001 to DQ016 plus the known intentional defects
+7. Quarantined-payment visibility and bad timestamp preservation
+8. Regression results for business questions Q1 to Q5
+9. Curated schema columns and generated report/chart files
+
+The pipeline and tests are separate commands. `python -m src.pipeline` generates data products; `python -m pytest tests/ -v` verifies them and displays the test names.
 
 ## Design summary
 
