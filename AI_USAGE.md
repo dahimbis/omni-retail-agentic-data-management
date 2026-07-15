@@ -42,6 +42,18 @@
 - Confirmed negative-ticket overlap is computed from joins, not narrative text.
 - Reviewed exception severities and suggested actions for business readability.
 
+## What we did in follow-up iterations (this submission polish)
+
+After the core pipeline worked, we continued steering Cursor to harden the submission and validate answers:
+
+1. **Mapped the solution to `Take-home-exercise_v1`** — Confirmed every required deliverable (recommended folder layout, suggested curated columns, DQ + exceptions with suggested actions, five business questions, README / APPROACH / AI_USAGE).
+2. **Improved README for reviewers** — Added a Mermaid pipeline flowchart, a “how this follows the brief” table, and a short build-iteration history so the agentic process is visible without reading the chat.
+3. **Independently re-checked business answers** — Recomputed Q1–Q5 from `curated.duckdb` and raw tickets (not trusting the report blindly). Confirmed Q3 defect keys (O1019, O1020, O1021, O1024, O1030) and Q5 overlap rate 0.5.
+4. **Resolved competing Q1 definitions** — Compared alternate revenue rules (include bad FKs, include negative qty O1030, use qty×price). Chose and documented the curated definition: **completed + valid FKs + quantity > 0 + sum(order_total)** → Mar `440.70`, Apr `356.97`, May `446.20`. Defective rows stay in the exception report / Q3 instead of distorting revenue.
+5. **Submission packaging** — Prepared the GitHub-oriented repo contents (required files only; excluded optional `verify_answers.py` and generated `curated.duckdb` from the intended push set). Auth/push on a shared machine used browser/ZIP fallback guidance when another user’s cached Git credentials blocked `git push`.
+
+Net result: a local, reproducible OmniRetail data-management solution with verified analytics and explicit judgment on how completed revenue is defined.
+
 ## What I would improve next
 
 - More explicit prompt checkpoints before each major module (ingest, transform, DQ) with reviewer-style acceptance criteria.
