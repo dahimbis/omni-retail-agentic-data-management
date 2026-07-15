@@ -1,6 +1,7 @@
 -- Business questions for OmniRetail curated model.
 -- Executed by src/reporting.py against outputs/curated.duckdb after transform/DQ.
--- Completed revenue excludes non-positive quantities (DQ007 failures).
+-- Revenue eligibility is calculated once in src/transform.py:
+-- completed status, valid customer/product keys, parsed date, and positive quantity.
 
 -- Q1: Completed revenue by month
 SELECT
@@ -8,9 +9,7 @@ SELECT
   round(sum(gross_order_amount), 2) AS completed_revenue,
   count(*) AS completed_order_count
 FROM fact_order
-WHERE lower(order_status) = 'completed'
-  AND quantity > 0
-  AND order_date IS NOT NULL
+WHERE is_revenue_eligible
 GROUP BY 1
 ORDER BY 1;
 
@@ -23,91 +22,36 @@ SELECT
   count(*) AS completed_orders
 FROM fact_order o
 JOIN dim_customer c ON o.customer_key = c.customer_key
-WHERE lower(o.order_status) = 'completed'
-  AND o.quantity > 0
+WHERE o.is_revenue_eligible
 GROUP BY 1, 2, 3
-ORDER BY completed_order_value DESC
+ORDER BY completed_order_value DESC, c.customer_key
 LIMIT 10;
 
 -- Q3: Orders with payment mismatches, missing payments, invalid refs, suspicious qty
-WITH flagged AS (
-  SELECT order_key, 'invalid_customer_reference' AS issue
-  FROM int_order WHERE NOT valid_customer
-  UNION ALL
-  SELECT order_key, 'invalid_product_reference' AS issue
-  FROM int_order WHERE NOT valid_product
-  UNION ALL
-  SELECT order_key, 'suspicious_quantity' AS issue
-  FROM int_order
-  WHERE lower(order_status) = 'completed'
-    AND (quantity IS NULL OR quantity <= 0)
-  UNION ALL
-  SELECT o.order_key, 'payment_amount_mismatch' AS issue
-  FROM int_order o
-  JOIN int_payment p ON o.order_key = p.order_key
-  WHERE lower(o.order_status) = 'completed'
-    AND lower(p.payment_status) = 'settled'
-    AND abs(p.payment_amount - o.gross_order_amount) > 0.01
-  UNION ALL
-  SELECT o.order_key, 'missing_payment' AS issue
-  FROM int_order o
-  LEFT JOIN int_payment p
-    ON o.order_key = p.order_key
-   AND lower(p.payment_status) IN ('settled', 'refunded')
-  WHERE lower(o.order_status) = 'completed'
-    AND p.payment_key IS NULL
-)
 SELECT
-  f.order_key,
-  o.customer_key,
-  o.product_key,
-  o.order_status,
-  o.quantity,
-  o.gross_order_amount,
-  string_agg(DISTINCT f.issue, ', ') AS issues
-FROM flagged f
-JOIN int_order o ON f.order_key = o.order_key
-GROUP BY 1, 2, 3, 4, 5, 6
-ORDER BY 1;
+  order_key,
+  customer_key,
+  product_key,
+  order_status,
+  quantity,
+  gross_order_amount,
+  issues
+FROM vw_order_exceptions
+ORDER BY order_key;
 
--- Q4: Completed revenue by state
+-- Q4: Completed revenue by shipping state
 SELECT
   coalesce(shipping_state, 'UNKNOWN') AS state,
   round(sum(gross_order_amount), 2) AS completed_revenue,
   count(*) AS completed_order_count
 FROM fact_order
-WHERE lower(order_status) = 'completed'
-  AND quantity > 0
+WHERE is_revenue_eligible
 GROUP BY 1
-ORDER BY completed_revenue DESC;
+ORDER BY completed_revenue DESC, state;
 
 -- Q5a: Summary overlap between negative tickets and exception customers
 WITH exception_customers AS (
-  SELECT DISTINCT customer_key
-  FROM (
-    SELECT customer_key FROM int_order WHERE NOT valid_customer
-    UNION
-    SELECT customer_key FROM int_order WHERE NOT valid_product
-    UNION
-    SELECT customer_key FROM int_order
-    WHERE lower(order_status) = 'completed'
-      AND (quantity IS NULL OR quantity <= 0)
-    UNION
-    SELECT o.customer_key
-    FROM int_order o
-    JOIN int_payment p ON o.order_key = p.order_key
-    WHERE lower(o.order_status) = 'completed'
-      AND lower(p.payment_status) = 'settled'
-      AND abs(p.payment_amount - o.gross_order_amount) > 0.01
-    UNION
-    SELECT o.customer_key
-    FROM int_order o
-    LEFT JOIN int_payment p
-      ON o.order_key = p.order_key
-     AND lower(p.payment_status) IN ('settled', 'refunded')
-    WHERE lower(o.order_status) = 'completed'
-      AND p.payment_key IS NULL
-  )
+  SELECT DISTINCT customer_key FROM vw_order_exceptions
   WHERE customer_key IS NOT NULL
 ),
 neg_tickets AS (
@@ -128,31 +72,7 @@ LEFT JOIN exception_customers e ON n.customer_key = e.customer_key;
 
 -- Q5b: Customer-level detail for negative tickets vs exceptions
 WITH exception_customers AS (
-  SELECT DISTINCT customer_key
-  FROM (
-    SELECT customer_key FROM int_order WHERE NOT valid_customer
-    UNION
-    SELECT customer_key FROM int_order WHERE NOT valid_product
-    UNION
-    SELECT customer_key FROM int_order
-    WHERE lower(order_status) = 'completed'
-      AND (quantity IS NULL OR quantity <= 0)
-    UNION
-    SELECT o.customer_key
-    FROM int_order o
-    JOIN int_payment p ON o.order_key = p.order_key
-    WHERE lower(o.order_status) = 'completed'
-      AND lower(p.payment_status) = 'settled'
-      AND abs(p.payment_amount - o.gross_order_amount) > 0.01
-    UNION
-    SELECT o.customer_key
-    FROM int_order o
-    LEFT JOIN int_payment p
-      ON o.order_key = p.order_key
-     AND lower(p.payment_status) IN ('settled', 'refunded')
-    WHERE lower(o.order_status) = 'completed'
-      AND p.payment_key IS NULL
-  )
+  SELECT DISTINCT customer_key FROM vw_order_exceptions
   WHERE customer_key IS NOT NULL
 ),
 neg_tickets AS (
@@ -173,4 +93,4 @@ SELECT
 FROM neg_tickets n
 LEFT JOIN dim_customer c ON n.customer_key = c.customer_key
 LEFT JOIN exception_customers e ON n.customer_key = e.customer_key
-ORDER BY has_order_payment_exception DESC, n.negative_ticket_count DESC;
+ORDER BY has_order_payment_exception DESC, n.negative_ticket_count DESC, n.customer_key;

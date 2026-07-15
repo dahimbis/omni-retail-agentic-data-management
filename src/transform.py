@@ -59,12 +59,14 @@ def _clean_phone(value: object) -> str | None:
 
 def build_dim_customer(customers: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     df = customers.copy()
+    df["source_row"] = range(len(df))
     df["signup_parsed"] = df["signup_date"].map(parse_timestamp)
     df["completeness"] = df.apply(_completeness_score, axis=1)
     df = df.sort_values(
-        by=["customer_id", "signup_parsed", "completeness"],
-        ascending=[True, True, False],
+        by=["customer_id", "signup_parsed", "completeness", "source_row"],
+        ascending=[True, True, False, True],
         na_position="last",
+        kind="stable",
     )
     kept = df.drop_duplicates(subset=["customer_id"], keep="first").copy()
     dropped_ids = set(df.loc[~df.index.isin(kept.index), "customer_id"].astype(str))
@@ -161,6 +163,13 @@ def build_fact_order(
     kept["order_amount_variance"] = (
         kept["order_total"] - kept["calculated_order_amount"]
     ).round(2)
+    kept["is_revenue_eligible"] = (
+        kept["order_status"].str.lower().eq("completed")
+        & kept["quantity"].gt(0)
+        & kept["order_parsed"].notna()
+        & kept["valid_customer"]
+        & kept["valid_product"]
+    )
 
     fk_rows = []
     invalid_mask = ~(kept["valid_customer"] & kept["valid_product"])
@@ -203,6 +212,7 @@ def build_fact_order(
             "gross_order_amount",
             "calculated_order_amount",
             "order_amount_variance",
+            "is_revenue_eligible",
             "valid_customer",
             "valid_product",
         ]
@@ -221,10 +231,32 @@ def build_fact_payment(
     int_order: pd.DataFrame,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     df = payments.copy()
+    df["source_row"] = range(len(df))
     df["amount"] = pd.to_numeric(df["amount"], errors="coerce")
     df["payment_parsed"] = df["payment_ts"].map(parse_timestamp)
+    df = df.sort_values(
+        by=["payment_id", "payment_parsed", "source_row"],
+        ascending=[True, True, True],
+        na_position="last",
+        kind="stable",
+    )
+    kept = df.drop_duplicates(subset=["payment_id"], keep="first").copy()
+    dropped = df.loc[~df.index.isin(kept.index)]
+    dedup_ex = pd.DataFrame(
+        {
+            "rule_id": "TRANSFORM_DEDUP_PAYMENT",
+            "dataset": "payments",
+            "record_key": dropped["payment_id"].astype(str),
+            "severity": "High",
+            "issue_description": "Duplicate payment_id dropped",
+            "suggested_action": "Investigate payment source double-write and retain one canonical row",
+        }
+    )
+    df = kept
     known_orders = set(int_order["order_key"]) | set(fact_order["order_key"])
+    curated_keys = set(fact_order["order_key"])
     df["valid_order"] = df["order_id"].isin(known_orders)
+    df["in_curated_order"] = df["order_id"].isin(curated_keys)
 
     orphan = df.loc[~df["valid_order"]].copy()
     orphan_ex = pd.DataFrame(
@@ -259,14 +291,14 @@ def build_fact_payment(
             "payment_status",
             "payment_amount",
             "valid_order",
+            "in_curated_order",
         ]
     ].reset_index(drop=True)
 
-    curated_keys = set(fact_order["order_key"])
-    fact = int_payment.loc[int_payment["order_key"].isin(curated_keys)].drop(
-        columns=["valid_order"]
+    fact = int_payment.loc[int_payment["in_curated_order"]].drop(
+        columns=["valid_order", "in_curated_order"]
     ).reset_index(drop=True)
-    return fact, int_payment, orphan_ex
+    return fact, int_payment, pd.concat([dedup_ex, orphan_ex], ignore_index=True)
 
 
 def build_fact_customer_issue(

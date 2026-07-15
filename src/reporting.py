@@ -41,12 +41,8 @@ def _md_table(df: pd.DataFrame) -> str:
 def _run_sql_file(con: duckdb.DuckDBPyConnection, path: Path) -> list[pd.DataFrame]:
     """Execute a multi-statement SQL file; return each SELECT result."""
     text = path.read_text(encoding="utf-8")
-    cleaned_lines = []
-    for line in text.splitlines():
-        if line.strip().startswith("--"):
-            continue
-        cleaned_lines.append(line)
-    text = "\n".join(cleaned_lines)
+    # DuckDB handles SQL comments. Preserve them so comment markers inside quoted
+    # text are not accidentally treated as comments by a home-grown parser.
     statements = [s.strip() for s in text.split(";") if s.strip()]
     results: list[pd.DataFrame] = []
     for stmt in statements:
@@ -127,7 +123,7 @@ def _write_charts(bq_frames: list[pd.DataFrame]) -> dict[str, str]:
         _save_bar_chart(
             categories=q4["state"].astype(str).tolist(),
             values=q4["completed_revenue"].astype(float).tolist(),
-            title="Q4: Completed revenue by state",
+            title="Q4: Completed revenue by shipping state",
             ylabel="Revenue ($)",
             filename="q4_revenue_by_state.png",
             colors=COLOR_PRIMARY,
@@ -138,49 +134,41 @@ def _write_charts(bq_frames: list[pd.DataFrame]) -> dict[str, str]:
 
 
 def _order_health_counts(con: duckdb.DuckDBPyConnection) -> tuple[int, int]:
-    trusted = con.execute(
+    completed = con.execute(
         """
-        SELECT count(*) FROM fact_order
-        WHERE lower(order_status) = 'completed' AND quantity > 0
+        SELECT count(*)
+        FROM int_order
+        WHERE lower(order_status) = 'completed'
         """
     ).fetchone()[0]
-    exception_orders = con.execute(
+    requiring_review = con.execute(
         """
-        WITH flagged AS (
-          SELECT order_key FROM int_order WHERE NOT valid_customer
+        WITH exception_orders AS (
+          SELECT e.record_key AS order_key
+          FROM dq_exception_report e
+          JOIN int_order o ON e.record_key = o.order_key
+          WHERE e.dataset = 'orders'
+            AND lower(o.order_status) = 'completed'
           UNION
-          SELECT order_key FROM int_order WHERE NOT valid_product
-          UNION
-          SELECT order_key FROM int_order
-          WHERE lower(order_status) = 'completed'
-            AND (quantity IS NULL OR quantity <= 0)
-          UNION
-          SELECT o.order_key
-          FROM int_order o
-          JOIN int_payment p ON o.order_key = p.order_key
-          WHERE lower(o.order_status) = 'completed'
-            AND lower(p.payment_status) = 'settled'
-            AND abs(p.payment_amount - o.gross_order_amount) > 0.01
-          UNION
-          SELECT o.order_key
-          FROM int_order o
-          LEFT JOIN int_payment p
-            ON o.order_key = p.order_key
-           AND lower(p.payment_status) IN ('settled', 'refunded')
-          WHERE lower(o.order_status) = 'completed'
-            AND p.payment_key IS NULL
+          SELECT p.order_key
+          FROM dq_exception_report e
+          JOIN int_payment p ON e.record_key = p.payment_key
+          JOIN int_order o ON p.order_key = o.order_key
+          WHERE e.dataset = 'payments'
+            AND lower(o.order_status) = 'completed'
         )
-        SELECT count(DISTINCT order_key) FROM flagged
+        SELECT count(DISTINCT order_key) FROM exception_orders
         """
     ).fetchone()[0]
-    return int(trusted), int(exception_orders)
+    clear = int(completed) - int(requiring_review)
+    return clear, int(requiring_review)
 
 
-def _write_order_health_chart(trusted: int, exception_orders: int) -> Path:
-    """Trusted completed orders vs orders with exceptions (README snapshot)."""
+def _write_order_health_chart(clear: int, requiring_review: int) -> Path:
+    """Mutually exclusive completed-order health counts."""
     return _save_bar_chart(
-        categories=["Trusted completed orders", "Orders with exceptions"],
-        values=[float(trusted), float(exception_orders)],
+        categories=["Completed orders clear", "Completed orders requiring review"],
+        values=[float(clear), float(requiring_review)],
         title="Order health snapshot",
         ylabel="Order count",
         filename="readme_order_health.png",
@@ -241,8 +229,8 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
     failed = int((dq["status"] == "FAIL").sum()) if not dq.empty else 0
 
     CHARTS_DIR.mkdir(parents=True, exist_ok=True)
-    trusted_n, exception_n = _order_health_counts(con)
-    _write_order_health_chart(trusted_n, exception_n)
+    clear_n, review_n = _order_health_counts(con)
+    _write_order_health_chart(clear_n, review_n)
 
     sev = (
         exceptions.groupby("severity").size().reindex(["High", "Medium", "Low"]).fillna(0)
@@ -264,14 +252,20 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
     # Keep a small snapshot table next to the README chart path for regenerable docs
     snapshot_df = pd.DataFrame(
         {
-            "category": ["Trusted completed orders", "Orders with exceptions"],
-            "order_count": [trusted_n, exception_n],
+            "category": [
+                "Completed orders clear",
+                "Completed orders requiring review",
+            ],
+            "order_count": [clear_n, review_n],
         }
     )
     (OUTPUT_DIR / "order_health_snapshot.md").write_text(
         "\n".join(
             [
                 "# Order health snapshot",
+                "",
+                "The categories are mutually exclusive. Requiring review means a completed "
+                "order has at least one order or payment record in `dq_exception_report`.",
                 "",
                 _md_table(snapshot_df),
                 "![Order health snapshot](charts/readme_order_health.png)",
@@ -281,34 +275,14 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
         encoding="utf-8",
     )
 
-    # Keep README snapshot table in sync with generated counts
-    readme_path = Path(__file__).resolve().parents[1] / "README.md"
-    if readme_path.exists():
-        readme = readme_path.read_text(encoding="utf-8")
-        start = readme.find("## Snapshot")
-        end = readme.find("## Repository structure")
-        if start != -1 and end != -1 and start < end:
-            snapshot_block = "\n".join(
-                [
-                    "## Snapshot",
-                    "",
-                    "This snapshot is generated by the pipeline. Exact counts first, then the chart "
-                    "(green = trusted, orange = exceptions).",
-                    "",
-                    _md_table(snapshot_df).rstrip(),
-                    "",
-                    "![Order health snapshot](outputs/charts/readme_order_health.png)",
-                    "",
-                    "",
-                ]
-            )
-            readme_path.write_text(readme[:start] + snapshot_block + readme[end:], encoding="utf-8")
-
+    unique_affected_records = len(
+        exceptions[["dataset", "record_key"]].drop_duplicates()
+    )
     dq_report = "\n".join(
         [
             "# Data Quality Report",
             "",
-            "Generated from the curated DuckDB model and DQ001 to DQ013 checks.",
+            f"Generated from the curated DuckDB model and {len(dq)} data quality checks.",
             "",
             "## Pipeline row counts",
             "",
@@ -316,6 +290,10 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
             f"- Rules passed: **{passed}**",
             f"- Rules failed: **{failed}**",
             f"- Exception rows: **{len(exceptions)}**",
+            f"- Distinct affected records: **{unique_affected_records}**",
+            "",
+            "The exception report also retains non-duplicated transform resolution events "
+            "and informational fuzzy-match flags. These are not additional DQ rules.",
             "",
             "## Exception count by severity",
             "",
@@ -349,7 +327,9 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
     sections.extend(
         _section_with_table_then_chart(
             "Q1. What is completed revenue by month?",
-            "Trusted completed orders only (valid customer and product IDs, quantity greater than zero).",
+            "Revenue-eligible completed orders: valid customer and product IDs, "
+            "a parsed order date, and quantity greater than zero. Payment and catalog "
+            "exceptions remain visible in the quality report.",
             bq_frames[0] if len(bq_frames) > 0 else None,
             images.get("q1"),
             "Q1 completed revenue by month",
@@ -369,14 +349,18 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
             "## Q3. Which orders have payment mismatches, missing payments, "
             "invalid customer references, invalid product references, or suspicious quantities?",
             "",
+            "This answer is intentionally limited to the five exception categories named "
+            "in the question. The data quality report also covers issues such as inactive "
+            "products and order arithmetic variance.",
+            "",
             _md_table(bq_frames[2]) if len(bq_frames) > 2 else "_Query missing._\n",
             "",
         ]
     )
     sections.extend(
         _section_with_table_then_chart(
-            "Q4. Which states have the highest completed revenue?",
-            None,
+            "Q4. Which shipping states have the highest completed revenue?",
+            "Revenue is attributed to the order shipping state, not the customer's home state.",
             bq_frames[3] if len(bq_frames) > 3 else None,
             images.get("q4"),
             "Q4 completed revenue by state",
@@ -386,6 +370,9 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
         [
             "## Q5. Is there any visible relationship between negative support tickets "
             "and order or payment exceptions?",
+            "",
+            "The exception-customer group uses the same five categories as Q3 so the "
+            "comparison is consistent and reproducible.",
             "",
             "### Summary",
             "",

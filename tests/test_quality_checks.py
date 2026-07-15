@@ -6,14 +6,34 @@ import sys
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.ingest import connect, ingest_raw, standardize_country, standardize_state
+import src.reporting as reporting
+from src.ingest import (
+    _validate_source,
+    connect,
+    ingest_raw,
+    standardize_country,
+    standardize_state,
+)
 from src.quality_checks import run_quality_checks
+from src.reporting import _run_sql_file, write_outputs
 from src.transform import build_dim_customer, build_fact_order, transform_all
+
+
+@pytest.fixture(scope="module")
+def pipeline_con(tmp_path_factory):
+    db_path = tmp_path_factory.mktemp("database") / "curated.duckdb"
+    con = connect(db_path)
+    ingest_raw(con)
+    transform_all(con)
+    run_quality_checks(con)
+    yield con
+    con.close()
 
 
 def test_standardize_country_and_state():
@@ -117,60 +137,211 @@ def test_order_dedupe_fk_and_variance():
     fact, int_order, ex = build_fact_order(orders, customers, products)
     assert len(fact) == 1
     assert fact.iloc[0]["order_amount_variance"] == 0.0
+    assert bool(fact.iloc[0]["is_revenue_eligible"]) is True
     assert "O999" in set(int_order["order_key"])
     assert any(ex["record_key"] == "O1018")
 
 
-def test_pipeline_row_counts_and_dq010():
-    con = connect()
-    try:
-        ingest_raw(con)
-        transform_all(con)
-        run_quality_checks(con)
-
-        assert con.execute("SELECT count(*) FROM dim_customer").fetchone()[0] == 19
-        assert con.execute("SELECT count(*) FROM fact_order").fetchone()[0] == 28
-
-        dq010 = con.execute(
-            "SELECT status, fail_count FROM dq_results WHERE rule_id = 'DQ010'"
-        ).fetchone()
-        assert dq010[0] == "FAIL"
-        assert dq010[1] >= 1
-
-        detail = con.execute(
-            """
-            SELECT record_key FROM dq_exception_report
-            WHERE rule_id = 'DQ010'
-            """
-        ).df()
-        assert "PMT021" in set(detail["record_key"])
-
-        # referential: curated fact_order keys exist in dims
-        orphans = con.execute(
-            """
-            SELECT count(*) FROM fact_order o
-            LEFT JOIN dim_customer c ON o.customer_key = c.customer_key
-            WHERE c.customer_key IS NULL
-            """
-        ).fetchone()[0]
-        assert orphans == 0
-    finally:
-        con.close()
+def test_input_schema_validation_has_clear_error():
+    with pytest.raises(ValueError, match=r"orders.csv.*order_id"):
+        _validate_source(Path("orders.csv"), pd.DataFrame({"customer_id": ["C001"]}))
 
 
-def test_timestamp_parsing_failure_flagged():
-    con = connect()
-    try:
-        ingest_raw(con)
-        transform_all(con)
-        run_quality_checks(con)
-        row = con.execute(
-            "SELECT status FROM dq_results WHERE rule_id = 'DQ011'"
-        ).fetchone()
-        assert row[0] == "FAIL"
-        keys = con.execute(
-            "SELECT record_key FROM dq_exception_report WHERE rule_id = 'DQ011'"
-        ).df()
-        assert "T010" in set(keys["record_key"])
-    finally:
-        con.close()
+def test_pipeline_reconciles_source_to_curated_counts(pipeline_con):
+    con = pipeline_con
+    comparisons = [
+        (
+            "SELECT count(DISTINCT customer_id) FROM stg_customers",
+            "SELECT count(*) FROM dim_customer",
+        ),
+        (
+            "SELECT count(DISTINCT order_id) FROM stg_orders",
+            "SELECT count(*) FROM int_order",
+        ),
+        (
+            "SELECT count(*) FROM int_order WHERE valid_customer AND valid_product",
+            "SELECT count(*) FROM fact_order",
+        ),
+        (
+            "SELECT count(*) FROM int_payment WHERE in_curated_order",
+            "SELECT count(*) FROM fact_payment",
+        ),
+    ]
+    for expected_sql, actual_sql in comparisons:
+        expected = con.execute(expected_sql).fetchone()[0]
+        actual = con.execute(actual_sql).fetchone()[0]
+        assert actual == expected
+
+    order_orphans = con.execute(
+        """
+        SELECT count(*) FROM fact_order o
+        LEFT JOIN dim_customer c ON o.customer_key = c.customer_key
+        LEFT JOIN dim_product p ON o.product_key = p.product_key
+        WHERE c.customer_key IS NULL OR p.product_key IS NULL
+        """
+    ).fetchone()[0]
+    payment_orphans = con.execute(
+        """
+        SELECT count(*) FROM fact_payment p
+        LEFT JOIN fact_order o ON p.order_key = o.order_key
+        WHERE o.order_key IS NULL
+        """
+    ).fetchone()[0]
+    assert order_orphans == 0
+    assert payment_orphans == 0
+
+
+def test_all_expected_quality_rules_and_defects(pipeline_con):
+    con = pipeline_con
+    rules = set(con.execute("SELECT rule_id FROM dq_results").df()["rule_id"])
+    assert rules == {f"DQ{i:03d}" for i in range(1, 17)}
+
+    exceptions = con.execute(
+        "SELECT rule_id, record_key FROM dq_exception_report"
+    ).df()
+    actual = set(exceptions.itertuples(index=False, name=None))
+    expected = {
+        ("TRANSFORM_DEDUP_CUSTOMER", "C006"),
+        ("TRANSFORM_DEDUP_ORDER", "O1018"),
+        ("DQ005", "O1019"),
+        ("DQ006", "O1020"),
+        ("DQ007", "O1030"),
+        ("DQ008", "O1021"),
+        ("DQ009", "PMT029"),
+        ("DQ010", "PMT021"),
+        ("DQ011", "T010"),
+        ("DQ012", "T005"),
+        ("DQ013", "O1015"),
+        ("DQ014", "O1024"),
+        ("DQ015", "PMT019"),
+        ("DQ015", "PMT020"),
+    }
+    assert expected <= actual
+
+    duplicated_semantics = con.execute(
+        """
+        SELECT count(*)
+        FROM dq_exception_report
+        WHERE rule_id IN (
+          'TRANSFORM_ORDER_FK',
+          'TRANSFORM_PAYMENT_ORPHAN',
+          'TRANSFORM_TICKET_TS',
+          'TRANSFORM_TICKET_FK'
+        )
+        """
+    ).fetchone()[0]
+    assert duplicated_semantics == 0
+
+
+def test_quarantined_payments_and_bad_timestamp_remain_auditable(pipeline_con):
+    quarantined = pipeline_con.execute(
+        """
+        SELECT payment_key, valid_order, in_curated_order
+        FROM int_payment
+        WHERE payment_key IN ('PMT019', 'PMT020')
+        ORDER BY payment_key
+        """
+    ).fetchall()
+    assert quarantined == [("PMT019", True, False), ("PMT020", True, False)]
+
+    ticket = pipeline_con.execute(
+        """
+        SELECT created_date, parse_ok
+        FROM int_customer_issue
+        WHERE ticket_id = 'T010'
+        """
+    ).fetchone()
+    assert ticket == (None, False)
+
+
+def test_business_question_regressions(pipeline_con):
+    frames = _run_sql_file(pipeline_con, ROOT / "sql" / "business_questions.sql")
+    assert len(frames) == 6
+
+    q1 = dict(zip(frames[0]["month"], frames[0]["completed_revenue"]))
+    assert q1 == {"2025-03": 440.70, "2025-04": 356.97, "2025-05": 446.20}
+
+    assert frames[1]["customer_key"].tolist() == [
+        "C010",
+        "C012",
+        "C016",
+        "C007",
+        "C002",
+        "C009",
+        "C018",
+        "C004",
+        "C003",
+        "C013",
+    ]
+    assert frames[2]["order_key"].tolist() == [
+        "O1019",
+        "O1020",
+        "O1021",
+        "O1024",
+        "O1030",
+    ]
+
+    q4 = dict(zip(frames[3]["state"], frames[3]["completed_revenue"]))
+    assert q4 == {
+        "MA": 278.23,
+        "IL": 277.97,
+        "WA": 192.98,
+        "CA": 169.72,
+        "TX": 141.98,
+        "NY": 117.0,
+        "FL": 65.99,
+    }
+    assert frames[4].iloc[0].to_dict() == {
+        "negative_ticket_customers": 6.0,
+        "also_have_exceptions": 3.0,
+        "overlap_rate": 0.5,
+    }
+
+
+def test_curated_schema_and_generated_reports(pipeline_con, tmp_path, monkeypatch):
+    expected_order_columns = {
+        "order_key",
+        "customer_key",
+        "product_key",
+        "order_date",
+        "quantity",
+        "order_status",
+        "shipping_state",
+        "gross_order_amount",
+        "calculated_order_amount",
+        "order_amount_variance",
+        "is_revenue_eligible",
+    }
+    columns = set(
+        pipeline_con.execute("PRAGMA table_info('fact_order')").df()["name"]
+    )
+    assert columns == expected_order_columns
+
+    generated_dir = tmp_path / "outputs"
+    monkeypatch.setattr(reporting, "OUTPUT_DIR", generated_dir)
+    monkeypatch.setattr(reporting, "CHARTS_DIR", generated_dir / "charts")
+    readme_before = (ROOT / "README.md").read_bytes()
+    write_outputs(pipeline_con)
+    assert (ROOT / "README.md").read_bytes() == readme_before
+
+    expected_files = {
+        "business_answers.md",
+        "data_quality_report.md",
+        "exceptions.csv",
+        "order_health_snapshot.md",
+        "charts/dq_exceptions_by_severity.png",
+        "charts/q1_revenue_by_month.png",
+        "charts/q2_top_customers.png",
+        "charts/q4_revenue_by_state.png",
+        "charts/readme_order_health.png",
+    }
+    actual_files = {
+        path.relative_to(generated_dir).as_posix()
+        for path in generated_dir.rglob("*")
+        if path.is_file()
+    }
+    assert expected_files == actual_files
+
+    answers = (generated_dir / "business_answers.md").read_text(encoding="utf-8")
+    assert "Q1. What is completed revenue by month?" in answers
+    assert "Q4. Which shipping states have the highest completed revenue?" in answers

@@ -21,7 +21,7 @@ def main() -> int:
     print(f"DuckDB    : {DUCKDB_PATH}")
     print(f"Outputs   : {OUTPUT_DIR}")
 
-    con = connect()
+    con = connect(reset=True)
     try:
         print("1/4 Ingesting raw sources...")
         ingest_raw(con)
@@ -40,6 +40,12 @@ def main() -> int:
     print(f"  - {OUTPUT_DIR / 'data_quality_report.md'}")
     print(f"  - {OUTPUT_DIR / 'exceptions.csv'}")
     print(f"  - {OUTPUT_DIR / 'business_answers.md'}")
+    print(f"  - {OUTPUT_DIR / 'order_health_snapshot.md'}")
+    print(f"  - {OUTPUT_DIR / 'charts' / 'readme_order_health.png'}")
+    print(f"  - {OUTPUT_DIR / 'charts' / 'dq_exceptions_by_severity.png'}")
+    print(f"  - {OUTPUT_DIR / 'charts' / 'q1_revenue_by_month.png'}")
+    print(f"  - {OUTPUT_DIR / 'charts' / 'q2_top_customers.png'}")
+    print(f"  - {OUTPUT_DIR / 'charts' / 'q4_revenue_by_state.png'}")
     print("Pipeline complete.")
     return 0
 

@@ -38,7 +38,8 @@ CREATE TABLE IF NOT EXISTS fact_order (
   shipping_state VARCHAR,
   gross_order_amount DECIMAL(18, 2),
   calculated_order_amount DECIMAL(18, 2),
-  order_amount_variance DECIMAL(18, 2)
+  order_amount_variance DECIMAL(18, 2),
+  is_revenue_eligible BOOLEAN
 );
 
 -- fact_payment
@@ -71,3 +72,7 @@ CREATE TABLE IF NOT EXISTS dq_exception_report (
   issue_description VARCHAR,
   suggested_action VARCHAR
 );
+
+-- Runtime audit objects are built by Python:
+-- int_order, int_payment, int_customer_issue, dq_results,
+-- transform_exceptions, and vw_order_exceptions.

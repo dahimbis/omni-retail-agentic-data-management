@@ -8,7 +8,7 @@ Build a small local OmniRetail data-management solution that turns messy operati
 
 1. **Ingest** (`src/ingest.py`) - load all `input_data` files into DuckDB staging tables with minimal casting.
 2. **Transform** (`src/transform.py`) - apply STTM rules into `dim_*` / `fact_*` plus intermediate tables used by DQ.
-3. **Quality** (`src/quality_checks.py`) - evaluate DQ001 to DQ012 (+ DQ013 inactive products) into `dq_results` and `dq_exception_report`.
+3. **Quality** (`src/quality_checks.py`) - evaluate DQ001 to DQ016 into `dq_results` and `dq_exception_report`. DQ013 to DQ016 extend the provided reference rules for inactive products, missing payments, quarantined-order payments, and payment-key uniqueness.
 4. **Reporting** (`src/reporting.py`) - write Markdown/CSV outputs and generated charts; business answers come from `sql/business_questions.sql`.
 
 ## Curated model decisions
@@ -17,20 +17,21 @@ Build a small local OmniRetail data-management solution that turns messy operati
 |--------|----------|
 | `dim_customer` | Remove duplicate `customer_id` rows; keep earliest signup then highest completeness; set `duplicate_resolution_flag` when a sibling row was dropped. Shared phones are flagged only (not merged). |
 | Country/state | Map USA/US/United States to `USA`; map full state names to 2-letter codes. |
-| `fact_order` | Trusted fact keeps valid customer+product IDs only. Audit table `int_order` keeps invalid-ID rows for exception inventory. Adds `calculated_order_amount` and `order_amount_variance`. |
-| `fact_payment` / tickets | Orphans / invalid customers excluded from curated facts and recorded in exceptions. |
-| Revenue metrics | Completed revenue excludes `quantity <= 0` so DQ007 failures do not distort totals. |
+| `fact_order` | Curated fact keeps valid customer+product IDs only. Audit table `int_order` keeps invalid-ID rows for exception inventory. Adds calculated amount, variance, and `is_revenue_eligible`. |
+| `fact_payment` / tickets | Invalid references are excluded from curated facts and retained in audit tables. Payments linked to quarantined orders are explicitly flagged. Tickets with bad timestamps remain available with a null curated date and a DQ exception. |
+| Revenue metrics | `is_revenue_eligible` requires completed status, valid keys, a parsed date, and positive quantity. Payment and inactive-product exceptions remain visible but do not silently change the requested order-revenue definition. |
 
 ## Assumptions
 
 - Exact ID duplicates are resolved automatically; near-duplicates (shared phone, e.g. C001/C019) stay separate until MDM confirms a merge.
-- "Completed revenue" means `order_status = completed` and positive quantity, on curated fact rows.
+- "Completed revenue" means `is_revenue_eligible = true` on curated fact rows.
 - Settled vs completed order total comparison uses gross order amount (source `order_total`), not recalculated amount, so DQ008 (price math) and DQ010 (payment match) stay distinct.
-- Missing payments for completed orders are reported even though that rule is an extension of DQ010 / business Q3.
+- Missing payments for completed orders are reported as DQ014, an explicit extension of DQ010 and business question 3.
 
 ## Tradeoffs
 
 - Python drives transforms for mixed timestamps and readability; SQL files document the target model and business answers.
+- `sttm_target_mapping.csv` and `data_quality_rules.csv` are reference specifications. The current implementation is intentionally explicit Python/SQL, not a metadata-driven rules engine.
 - Invalid orders are excluded from curated facts (cleaner analytics) but remain in intermediate tables and the exception report (auditable).
 - Kept dependencies minimal: DuckDB, pandas, matplotlib, pytest.
 - Reporting writes Markdown tables plus generated bar charts for key stakeholder views.
@@ -46,24 +47,22 @@ Build a small local OmniRetail data-management solution that turns messy operati
 
 **How new data is expected to land today:** update the extract files in `input_data/`, rerun the pipeline, then review the new outputs. That keeps the take-home simple and fully reproducible.
 
-## Final audit follow-up
+## Final audit fixes
 
-A final read-only review confirmed that the business answers match the current sample data. It also identified the following implementation improvements to complete before final submission:
+The final review led to concrete hardening work:
 
-1. Add an explicit exception for payments tied to orders excluded because of invalid customer or product IDs (PMT019 and PMT020).
-2. Correct the order-health snapshot so its categories are mutually exclusive, or clearly explain their overlap.
-3. Separate transform events from DQ failures so the same source defect is not counted twice.
-4. Register the missing-payment check in the DQ rule summary, or label it as a business-only extension.
-5. Stop the pipeline from modifying `README.md` during report generation.
-6. Add a secondary sort key for tied customer values in Q2.
-7. Add automated checks for the five business answers, report generation, schema columns, and the full intentional-defect list.
-8. Clarify that STTM and DQ CSV files are reference specifications; the current Python logic is not metadata-driven.
-
-This section should be updated after the fixes are completed so it reflects the final implementation.
+1. Payments PMT019 and PMT020 remain visible in `int_payment` and are flagged by DQ015.
+2. Order-health categories are mutually exclusive: completed orders clear vs completed orders requiring review.
+3. Transform events that already have a DQ equivalent are excluded from the final exception report, preventing duplicate counts.
+4. Missing payments are registered as DQ014, and payment-key uniqueness is checked by DQ016.
+5. Report generation writes only under `outputs/` and no longer modifies `README.md`.
+6. Revenue eligibility and Q3/Q5 exception logic are each defined once and reused.
+7. Business query tie-breaking is deterministic, and Q4 explicitly uses order shipping state.
+8. Automated regression tests cover Q1 to Q5, expected defect keys, schemas, reconciliation, and generated reports.
 
 ## Verification performed
 
 - Re-ran `python -m src.pipeline` end-to-end from a clean DuckDB file.
-- Confirmed intentional defect catches: C006/O1018 duplicate IDs, O1019/O1020 bad IDs, O1021 payment mismatch, O1024 missing payment, O1030 negative qty, T010 bad timestamp, P011 inactive product on O1015.
-- Ran `pytest tests/ -q` for row counts, referential integrity, parsing, and DQ010.
+- Confirmed intentional defect catches: C006/O1018 duplicate IDs, O1019/O1020 bad IDs, PMT019/PMT020 quarantined-order payments, O1021 payment mismatch, O1024 missing payment, O1030 negative quantity, T010 bad timestamp, and P011 inactive product on O1015.
+- Ran `pytest tests/ -q`: 9 tests passed, covering reconciliation, references, schemas, all five business answers, expected defect keys, and generated report files.
 - Confirmed charts regenerate under `outputs/charts/` for Q1, Q2, Q4, and DQ severity.

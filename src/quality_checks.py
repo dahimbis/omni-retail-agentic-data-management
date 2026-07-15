@@ -9,7 +9,7 @@ EMAIL_RE = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
 
 SUGGESTED_ACTIONS = {
     "DQ001": "Enforce unique customer_key in curated load and fix source duplicates",
-    "DQ002": "Request missing/invalid email from CRM before marketing use",
+    "DQ002": "Correct invalid email syntax before marketing use",
     "DQ003": "Apply reference data standardization for country/state",
     "DQ004": "Deduplicate orders at ingest and block duplicate order_id writes",
     "DQ005": "Quarantine order; repair customer_key via MDM lookup",
@@ -21,6 +21,9 @@ SUGGESTED_ACTIONS = {
     "DQ011": "Fix malformed ticket timestamp in source system",
     "DQ012": "Link ticket to valid customer_key or quarantine",
     "DQ013": "Flag completed sales of inactive products for catalog review",
+    "DQ014": "Create or locate the missing payment before closing the order",
+    "DQ015": "Hold payment in the audit layer until the related order keys are repaired",
+    "DQ016": "Deduplicate payment IDs and repair the payment source write path",
 }
 
 
@@ -53,7 +56,21 @@ def run_quality_checks(con: duckdb.DuckDBPyConnection) -> None:
     exceptions: list[pd.DataFrame] = []
     results: list[dict] = []
 
-    transform_ex = con.execute("SELECT * FROM transform_exceptions").df()
+    # Keep source-resolution events that are not repeated by a DQ rule.
+    # FK, orphan-payment, and ticket transform issues are represented by
+    # DQ005/006/009/011/012 below to avoid double-counting the same defect.
+    transform_ex = con.execute(
+        """
+        SELECT *
+        FROM transform_exceptions
+        WHERE rule_id IN (
+          'TRANSFORM_DEDUP_CUSTOMER',
+          'TRANSFORM_DEDUP_ORDER',
+          'TRANSFORM_DEDUP_PAYMENT',
+          'INFO_FUZZY_CUSTOMER_PHONE'
+        )
+        """
+    ).df()
     if not transform_ex.empty:
         exceptions.append(transform_ex)
 
@@ -80,12 +97,11 @@ def run_quality_checks(con: duckdb.DuckDBPyConnection) -> None:
     email_issues = con.execute(
         f"""
         SELECT customer_key AS record_key,
-               CASE
-                 WHEN email IS NULL OR trim(email) = '' THEN 'missing email'
-                 ELSE 'invalid email syntax: ' || email
-               END AS issue_description
+               'invalid email syntax: ' || email AS issue_description
         FROM dim_customer
-        WHERE email IS NULL OR trim(email) = '' OR NOT regexp_matches(email, '{EMAIL_RE}')
+        WHERE email IS NOT NULL
+          AND trim(email) <> ''
+          AND NOT regexp_matches(email, '{EMAIL_RE}')
         """
     ).df()
     record("DQ002", "email should be present and syntactically valid when available", "Medium",
@@ -189,20 +205,55 @@ def run_quality_checks(con: duckdb.DuckDBPyConnection) -> None:
     missing_pay = con.execute(
         """
         SELECT o.order_key AS record_key,
-               'completed order missing settled/refunded payment' AS issue_description
+               'completed order missing settled payment' AS issue_description
         FROM int_order o
-        LEFT JOIN int_payment p
-          ON o.order_key = p.order_key
-         AND lower(p.payment_status) IN ('settled', 'refunded')
-        WHERE lower(o.order_status) = 'completed' AND p.payment_key IS NULL
+        WHERE lower(o.order_status) = 'completed'
+          AND NOT EXISTS (
+            SELECT 1
+            FROM int_payment p
+            WHERE p.order_key = o.order_key
+              AND lower(p.payment_status) = 'settled'
+          )
         """
     ).df()
-    _append(exceptions, "BQ003_MISSING_PAYMENT", "orders", missing_pay, "High")
-    # override suggested action for custom rule
-    if exceptions and not missing_pay.empty:
-        exceptions[-1]["suggested_action"] = (
-            "Create or locate missing payment record before closing order"
-        )
+    record(
+        "DQ014",
+        "completed orders should have a settled payment",
+        "High",
+        _append(exceptions, "DQ014", "orders", missing_pay, "High"),
+    )
+
+    quarantined_payments = con.execute(
+        """
+        SELECT payment_key AS record_key,
+               'payment references order excluded from fact_order: ' || order_key
+                 AS issue_description
+        FROM int_payment
+        WHERE valid_order AND NOT in_curated_order
+        """
+    ).df()
+    record(
+        "DQ015",
+        "payments tied to quarantined orders must remain visible",
+        "High",
+        _append(exceptions, "DQ015", "payments", quarantined_payments, "High"),
+    )
+
+    duplicate_payments = con.execute(
+        """
+        SELECT payment_key AS record_key,
+               'duplicate payment_key in fact_payment' AS issue_description
+        FROM fact_payment
+        GROUP BY 1
+        HAVING count(*) > 1
+        """
+    ).df()
+    record(
+        "DQ016",
+        "payment_id must be unique after duplicate resolution",
+        "High",
+        _append(exceptions, "DQ016", "payments", duplicate_payments, "High"),
+    )
 
     bad_ts = con.execute(
         """
@@ -265,3 +316,50 @@ def run_quality_checks(con: duckdb.DuckDBPyConnection) -> None:
         "CREATE OR REPLACE TABLE dq_exception_report AS SELECT * FROM dq_exception_report_df"
     )
     con.unregister("dq_exception_report_df")
+
+    # One reusable source for business question 3, Q5 overlap, and reporting.
+    con.execute(
+        """
+        CREATE OR REPLACE VIEW vw_order_exceptions AS
+        WITH flagged AS (
+          SELECT order_key, 'invalid_customer_reference' AS issue
+          FROM int_order WHERE NOT valid_customer
+          UNION ALL
+          SELECT order_key, 'invalid_product_reference' AS issue
+          FROM int_order WHERE NOT valid_product
+          UNION ALL
+          SELECT order_key, 'suspicious_quantity' AS issue
+          FROM int_order
+          WHERE lower(order_status) = 'completed'
+            AND (quantity IS NULL OR quantity <= 0)
+          UNION ALL
+          SELECT o.order_key, 'payment_amount_mismatch' AS issue
+          FROM int_order o
+          JOIN int_payment p ON o.order_key = p.order_key
+          WHERE lower(o.order_status) = 'completed'
+            AND lower(p.payment_status) = 'settled'
+            AND abs(p.payment_amount - o.gross_order_amount) > 0.01
+          UNION ALL
+          SELECT o.order_key, 'missing_payment' AS issue
+          FROM int_order o
+          WHERE lower(o.order_status) = 'completed'
+            AND NOT EXISTS (
+              SELECT 1
+              FROM int_payment p
+              WHERE p.order_key = o.order_key
+                AND lower(p.payment_status) = 'settled'
+            )
+        )
+        SELECT
+          o.order_key,
+          o.customer_key,
+          o.product_key,
+          o.order_status,
+          o.quantity,
+          o.gross_order_amount,
+          string_agg(DISTINCT f.issue, ', ' ORDER BY f.issue) AS issues
+        FROM flagged f
+        JOIN int_order o ON f.order_key = o.order_key
+        GROUP BY 1, 2, 3, 4, 5, 6
+        """
+    )

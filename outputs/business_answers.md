@@ -4,7 +4,7 @@ Answers are generated with SQL from `sql/business_questions.sql` against the cur
 
 ## Q1. What is completed revenue by month?
 
-Trusted completed orders only (valid customer and product IDs, quantity greater than zero).
+Revenue-eligible completed orders: valid customer and product IDs, a parsed order date, and quantity greater than zero. Payment and catalog exceptions remain visible in the quality report.
 
 | month | completed_revenue | completed_order_count |
 | --- | --- | --- |
@@ -20,8 +20,8 @@ Trusted completed orders only (valid customer and product IDs, quantity greater 
 | customer_key | full_name | loyalty_tier | completed_order_value | completed_orders |
 | --- | --- | --- | --- | --- |
 | C010 | Lucas Taylor | Gold | 194.98 | 2 |
-| C016 | Henry Martin | Silver | 133.98 | 2 |
 | C012 | James Thomas | Bronze | 133.98 | 2 |
+| C016 | Henry Martin | Silver | 133.98 | 2 |
 | C007 | Sophia Miller | Gold | 99.98 | 2 |
 | C002 | Liam Nguyen | Silver | 89.99 | 2 |
 | C009 | Isabella Moore | Bronze | 83.25 | 2 |
@@ -35,6 +35,8 @@ Trusted completed orders only (valid customer and product IDs, quantity greater 
 
 ## Q3. Which orders have payment mismatches, missing payments, invalid customer references, invalid product references, or suspicious quantities?
 
+This answer is intentionally limited to the five exception categories named in the question. The data quality report also covers issues such as inactive products and order arithmetic variance.
+
 | order_key | customer_key | product_key | order_status | quantity | gross_order_amount | issues |
 | --- | --- | --- | --- | --- | --- | --- |
 | O1019 | C999 | P002 | completed | 1 | 24.99 | invalid_customer_reference |
@@ -44,7 +46,9 @@ Trusted completed orders only (valid customer and product IDs, quantity greater 
 | O1030 | C018 | P010 | completed | -1 | -21.0 | suspicious_quantity |
 
 
-## Q4. Which states have the highest completed revenue?
+## Q4. Which shipping states have the highest completed revenue?
+
+Revenue is attributed to the order shipping state, not the customer's home state.
 
 | state | completed_revenue | completed_order_count |
 | --- | --- | --- |
@@ -60,6 +64,8 @@ Trusted completed orders only (valid customer and product IDs, quantity greater 
 ![Q4 completed revenue by state](charts/q4_revenue_by_state.png)
 
 ## Q5. Is there any visible relationship between negative support tickets and order or payment exceptions?
+
+The exception-customer group uses the same five categories as Q3 so the comparison is consistent and reproducible.
 
 ### Summary
 
