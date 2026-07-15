@@ -1,118 +1,180 @@
-# OmniRetail Agentic Data Management
+# OmniRetail Data Management Pipeline
 
-Local, reproducible OmniRetail pipeline: ingest raw files, build curated tables, run data-quality checks, and answer the five business questions.
+This project builds a local data pipeline for OmniRetail customer-360 and order reconciliation work. It reads the provided source files, creates curated tables, runs data quality checks, writes an exception report, and answers five business questions with SQL.
 
-Built for the **Agentic Data Management** take-home (`Take-home-exercise_v1`) using **Cursor** as the agentic coding assistant. Local-only — no cloud APIs.
-
-## Pipeline flowchart
-
-```mermaid
-flowchart TD
-  subgraph inputs [input_data]
-    rawCSV[customers products orders payments]
-    rawJSON[support_tickets.jsonl]
-    guidance[STTM DQ rules business questions]
-  end
-
-  subgraph pipeline [src pipeline]
-    ingest[ingest.py]
-    transform[transform.py]
-    quality[quality_checks.py]
-    reporting[reporting.py]
-  end
-
-  subgraph model [curated.duckdb]
-    staging[stg tables]
-    dims[dim_customer dim_product]
-    facts[fact_order fact_payment fact_customer_issue]
-    intermediate[int_order int_payment int_customer_issue]
-    dqTables[dq_results dq_exception_report]
-  end
-
-  subgraph outputs [outputs]
-    dqReport[data_quality_report.md]
-    exceptions[exceptions.csv]
-    answers[business_answers.md]
-  end
-
-  rawCSV --> ingest
-  rawJSON --> ingest
-  guidance --> transform
-  guidance --> quality
-  ingest --> staging
-  staging --> transform
-  transform --> dims
-  transform --> facts
-  transform --> intermediate
-  dims --> quality
-  facts --> quality
-  intermediate --> quality
-  quality --> dqTables
-  dqTables --> dqReport
-  dqTables --> exceptions
-  facts --> reporting
-  intermediate --> reporting
-  reporting --> answers
-```
-
-**One command:** `python -m src.pipeline` runs ingest → transform → quality → reporting end-to-end.
-
-## How this follows the take-home brief
-
-| Brief requirement | Where it lives |
-|---|---|
-| Ingest all `input_data` files | `src/ingest.py` |
-| Suggested curated model (`dim_*` / `fact_*` + exception schema) | `src/transform.py`, `sql/curated_model.sql` |
-| DQ: duplicates, bad FKs, timestamps, negative qty, inactive products, payment mismatches | `src/quality_checks.py` (DQ001–DQ013) |
-| Exception report with severity + recommended handling | `outputs/exceptions.csv` |
-| Answer all 5 business questions (not hard-coded) | `sql/business_questions.sql` → `outputs/business_answers.md` |
-| Recommended repo layout | This folder structure |
-| README + runnable single command | This file + `src/pipeline.py` |
-| `AI_USAGE.md` / `APPROACH.md` | Repo root |
-| Tests / validation | `tests/test_quality_checks.py` |
-| Local-only stack | Python + DuckDB + pandas |
-
-Suggested model columns are implemented (phone, signup_date, duplicate flag, calculated amount / variance, payment_date, ticket description, suggested_action on exceptions). See `APPROACH.md` for design decisions.
+The pipeline is modular so each layer has a clear job: load data, clean and model it, validate it, then report on it.
 
 ## Repository structure
 
-Matches `Take-home-exercise_v1` recommended layout:
-
 ```
 omni-retail-agentic-data-management/
-  input_data/
-  src/
-    pipeline.py
-    ingest.py
-    transform.py
-    quality_checks.py
-    reporting.py
-  sql/
-    curated_model.sql
-    business_questions.sql
-  tests/
-    test_quality_checks.py
-  outputs/
-    curated.duckdb
-    data_quality_report.md
-    exceptions.csv
-    business_answers.md
-  README.md
-  AI_USAGE.md
-  APPROACH.md
-  requirements.txt
+├── input_data/          Source CSVs, JSONL, STTM mapping, and DQ rules
+├── src/
+│   ├── pipeline.py      Single entrypoint
+│   ├── ingest.py        Load raw files into DuckDB
+│   ├── transform.py     Clean data and build curated tables
+│   ├── quality_checks.py
+│   └── reporting.py     Write Markdown and CSV outputs
+├── sql/
+│   ├── curated_model.sql
+│   └── business_questions.sql
+├── tests/               Row count, reference, amount, and parsing checks
+├── outputs/             Generated database and reports
+├── README.md
+├── APPROACH.md          Design decisions and tradeoffs
+├── AI_USAGE.md          How the agentic tool was used and verified
+└── requirements.txt
 ```
 
-## Setup
+## Technology stack
 
-Python 3.10+ required. Local-only (no cloud APIs).
+- **Python 3.10+** for orchestration and transforms
+- **DuckDB** as the local analytical database
+- **pandas** for file loading and cleaning helpers
+- **SQL** for curated-model documentation and business questions
+- **pytest** for automated checks
+
+## Pipeline workflow
+
+```mermaid
+flowchart TD
+  A[Raw files in input_data] --> B[Ingest]
+  B --> C[Clean and transform]
+  C --> D[Curated tables]
+  D --> E[Data quality checks]
+  E --> F[Reports and business answers]
+```
+
+1. **Ingest** loads every source file into staging tables. Important text fields stay as strings at this step so formatting is not lost before validation.
+2. **Transform** applies cleaning rules and builds dimensions and facts.
+3. **Quality checks** score rules and write row-level exceptions.
+4. **Reporting** runs the business SQL and writes the output files under `outputs/`.
+
+## What each layer does
+
+### Ingestion
+
+`src/ingest.py` loads:
+
+- `customers.csv`
+- `products.csv`
+- `orders.csv`
+- `payments.csv`
+- `support_tickets.jsonl`
+
+Supporting guidance files (`sttm_target_mapping.csv`, `data_quality_rules.csv`, question list) inform the transform and quality layers. Ingestion does not apply business logic. It only loads the files consistently into DuckDB.
+
+### Curated model
+
+| Table | Purpose |
+|------|---------|
+| `dim_customer` | Deduplicated customers with standardized name, email, phone, country, state, signup date, and loyalty tier |
+| `dim_product` | Products with category, unit price, and active flag |
+| `fact_order` | Trusted orders with amounts, variance, and shipping state |
+| `fact_payment` | Payments linked to curated orders |
+| `fact_customer_issue` | Support tickets with category and sentiment |
+| `dq_exception_report` | Rule failures with severity and suggested action |
+
+Intermediate tables (`int_order`, `int_payment`, `int_customer_issue`) keep cleaned rows that failed foreign-key checks so quality and business question 3 can still inspect them.
+
+### Customer cleaning
+
+- Build `full_name` from first and last name
+- Lowercase email
+- Map country values such as US / United States to `USA`
+- Map full state names to two-letter codes
+- Parse mixed signup-date formats
+- Resolve duplicate `customer_id` (example: `C006`) and keep a survivor row
+- Record removed duplicates in the exception report
+- Flag shared phone numbers for review, but do not auto-merge different customer IDs
+
+### Product cleaning
+
+- Cast unit price to numeric
+- Keep inactive products in the dimension for history
+- Flag completed orders that use inactive products
+
+### Order transformation
+
+- Remove duplicate order `O1018`
+- Parse mixed timestamp formats into an order date
+- Standardize shipping state
+- Cast quantity and totals to numeric
+- Calculate `calculated_order_amount = quantity x unit_price`
+- Calculate `order_amount_variance = gross_order_amount - calculated_order_amount`
+- Keep invalid customer or product references out of curated facts, but retain them in intermediate tables and exceptions
+
+### Payment reconciliation
+
+- Parse payment dates and cast amounts
+- Compare settled payments to completed order totals
+- Detect missing payments, amount mismatches, and orphan payments
+- Keep voided and refunded payments available for audit context
+
+Known examples:
+
+- `O1021`: order total $50.00, settled payment $44.00
+- `O1024`: completed order with no settled payment
+- `PMT029`: orphan payment for nonexistent order `O9999`
+
+### Support ticket processing
+
+- Load JSONL tickets
+- Parse timestamps when possible
+- Preserve tickets with bad timestamps, set curated date null, and log an exception
+- Flag tickets with invalid customer references
+- Use negative sentiment for the relationship analysis in question 5
+
+## Data quality checks
+
+Checks cover duplicates, invalid references, timestamp failures, negative quantities, inactive products, order arithmetic mismatches, and payment mismatches.
+
+Each exception row includes:
+
+- Rule ID
+- Dataset
+- Record key
+- Severity
+- Issue description
+- Suggested action
+
+Outputs:
+
+- `outputs/exceptions.csv` for row-level investigation
+- `outputs/data_quality_report.md` for rule and severity summary
+
+## Business answers
+
+Answers are produced by `sql/business_questions.sql` against the curated model. They are not hard-coded.
+
+**Completed revenue definition:** `order_status = completed`, valid customer and product keys, and `quantity > 0`. Defective orders stay in exceptions and question 3.
+
+| Question | Method in short |
+|----------|-----------------|
+| 1. Completed revenue by month | Sum trusted completed order totals by year-month |
+| 2. Top 10 customers | Join trusted orders to `dim_customer`, aggregate, order by value |
+| 3. Exception orders | List orders with bad FKs, payment issues, or suspicious quantity |
+| 4. Revenue by state | Same trusted filter as Q1, group by shipping state |
+| 5. Negative tickets vs exceptions | Compare customers with negative tickets to customers with order or payment exceptions |
+
+Current Q1 result under that definition:
+
+| Month | Completed revenue | Orders |
+|-------|------------------:|-------:|
+| 2025-03 | $440.70 | 9 |
+| 2025-04 | $356.97 | 7 |
+| 2025-05 | $446.20 | 9 |
+
+See `outputs/business_answers.md` for the full generated answers.
+
+## Installation
 
 ```bash
 cd omni-retail-agentic-data-management
 python -m pip install -r requirements.txt
 ```
 
-## Run
+## Running the pipeline
 
 ```bash
 python -m src.pipeline
@@ -124,35 +186,37 @@ Or:
 python src/pipeline.py
 ```
 
-Then open:
+This regenerates:
 
+- `outputs/curated.duckdb`
 - `outputs/data_quality_report.md`
 - `outputs/exceptions.csv`
 - `outputs/business_answers.md`
 
-## Tests
+## Running the tests
 
 ```bash
 python -m pytest tests/ -q
 ```
 
+Tests cover row counts after dedupe, referential checks, amount mismatch detection (including `O1021`), and malformed timestamp handling (`T010`).
+
 ## Design summary
 
-- **Ingest:** CSV/JSONL → DuckDB staging tables.
-- **Transform:** STTM-aligned dims/facts with brief-suggested columns. Invalid FKs quarantine to exceptions; `int_*` tables keep cleaned rows for DQ and Q3.
-- **Quality:** Rules from `input_data/data_quality_rules.csv` plus inactive-product check (`DQ013`) and missing-payment flag.
-- **Analytics:** SQL in `sql/business_questions.sql` against the model (not hard-coded). Completed revenue excludes non-positive quantities.
+- Exact ID duplicates are resolved in transform. Fuzzy phone overlaps are informational only.
+- Invalid foreign keys are quarantined from curated facts and kept visible in intermediate tables and the exception report.
+- Settled payments are reconciled against completed order totals. Voided or refunded payments are not treated as current settled cash.
+- Business SQL lives in `sql/` so analytics stay reviewable outside Python.
 
-## Build iterations (agentic process)
+## Build process notes
 
-What changed while steering Cursor on this exercise:
+Cursor was used to plan, generate, and debug the pipeline. Generated code was run and checked before acceptance. Structure and schema were adjusted after reading the full take-home brief, and business answers were recomputed independently to confirm they come from the model. Details, prompts, and verification notes are in `AI_USAGE.md`.
 
-1. **First pass from `input_data` only** — Built a working DuckDB pipeline when only the data pack was in the Cursor workspace (the `.docx` brief was outside the folder).
-2. **Found `Take-home-exercise_v1.docx`** — Re-read the official brief and **rejected** the invented ad-hoc layout (`omni_retail_dm/`) for submission.
-3. **Restructured to the recommended tree** — Created `omni-retail-agentic-data-management/` with the exact `src/` / `sql/` / `tests/` / `outputs/` layout from section 8 of the brief.
-4. **Enriched the curated model** — Expanded from STTM-minimal columns to the **suggested target model** (phone, variance, duplicate flag, suggested_action, etc.).
-5. **Split outputs** — Replaced one combined Markdown report with `data_quality_report.md`, `exceptions.csv`, and `business_answers.md`.
-6. **Added mandatory docs** — `AI_USAGE.md` and `APPROACH.md`.
-7. **Verification loop** — Ran pipeline + pytest; independently confirmed Q1–Q5 (including O1021 payment mismatch, O1024 missing payment, Q5 overlap 0.5).
+## Assumptions and limitations
 
-Details of tool prompts, accepts/rejects, and verification are in `AI_USAGE.md`. Assumptions and tradeoffs are in `APPROACH.md`.
+- Duplicate ID survivorship keeps the earliest usable row when the source has no update timestamp or priority field.
+- Country and state standardization focuses on US values in this sample.
+- Overlap between negative tickets and exceptions is visible in this sample, but the dataset is too small for causal claims.
+- No incremental loads or SCD Type 2 history.
+
+More tradeoff detail is in `APPROACH.md`.
