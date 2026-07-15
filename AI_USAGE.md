@@ -90,6 +90,7 @@ These instructions demonstrate problem decomposition, constrained code generatio
 - I spot-checked O1021: source total `$50.00`, calculated amount `$44.00`, and settled payment `$44.00`, producing separate order-arithmetic and payment-mismatch findings.
 - I verified O1024 has no settled payment, PMT029 references nonexistent O9999, and T010 has an invalid timestamp.
 - I confirmed the `$37.98` difference between April's curated revenue (`$356.97`) and the alternate total (`$394.95`) comes from adding quarantined O1019 and O1020.
+- I traced the Q4 difference to the same two orders, both of which ship to Illinois. Including them gives IL `$315.95`; excluding their invalid references gives IL `$277.97`, so MA ranks first at `$278.23`.
 - I confirmed Q4 uses order shipping state and Q5 consistently uses the same exception definition as Q3.
 - I ran the pipeline and pytest after the final corrections and inspected the generated reports rather than trusting generated narrative text.
 

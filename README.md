@@ -209,7 +209,7 @@ Current Q1 result under that definition:
 Reconciliation notes:
 
 - April revenue is `$356.97`. Adding quarantined orders `O1019` (`$24.99`) and `O1020` (`$12.99`) would produce `$394.95`, but the STTM sends their invalid foreign keys to the exception path rather than `fact_order`.
-- Q4 groups revenue by the order's shipping state, not the customer's home state.
+- Q4 groups revenue by the order's shipping state, not the customer's home state. O1019 and O1020 both ship to Illinois, so including them would produce `$315.95` for IL. The curated result excludes their `$37.98`, leaving IL at `$277.97`; MA is therefore highest at `$278.23`, a difference of `$0.26`.
 - Q5 uses the same five exception categories as Q3. Three of six valid customers with negative tickets (`C001`, `C002`, and `C018`) have at least one matching order/payment exception.
 
 See `outputs/business_answers.md` for the full generated answers, tables, and charts.
