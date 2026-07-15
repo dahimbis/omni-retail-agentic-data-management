@@ -203,6 +203,7 @@ def test_all_expected_quality_rules_and_defects(pipeline_con):
     expected = {
         ("TRANSFORM_DEDUP_CUSTOMER", "C006"),
         ("TRANSFORM_DEDUP_ORDER", "O1018"),
+        ("DQ002", "C004"),
         ("DQ005", "O1019"),
         ("DQ006", "O1020"),
         ("DQ007", "O1030"),

@@ -103,12 +103,13 @@ The pipeline also keeps audit tables (`int_order`, `int_payment`, `int_customer_
 
 - Build `full_name` from first and last name
 - Lowercase email
+- Flag missing or syntactically invalid email, including missing email on `C004`
 - Map country values such as US / United States to `USA`
 - Map full state names to two-letter codes
 - Parse mixed signup-date formats
 - Remove repeated customer IDs (example: two rows for `C006`) and keep one cleaned customer record
 - Write the removed duplicate to the exception report
-- Flag shared phone numbers for review, but do not automatically merge different customer IDs
+- Flag shared phone numbers for review, but do not automatically merge different customer IDs. `C019` remains separate from `C001` pending identity confirmation; `C016` also shares the same phone number, so phone alone is not a safe merge key.
 
 ### Product cleaning
 
@@ -151,7 +152,7 @@ Known examples:
 
 ## Data quality checks
 
-Checks cover duplicates, invalid references, timestamp failures, negative quantities, inactive products, order arithmetic mismatches, payment mismatches, missing payments, and payments tied to quarantined orders. DQ001 to DQ012 come from the provided reference file; DQ013 to DQ016 are documented extensions for the brief and reconciliation workflow.
+Checks cover duplicates, missing or invalid email, invalid references, timestamp failures, negative quantities, inactive products, order arithmetic mismatches, payment mismatches, missing payments, and payments tied to quarantined orders. DQ001 to DQ012 come from the provided reference file; DQ013 to DQ016 are documented extensions for the brief and reconciliation workflow. For DQ002, the STTM instruction to flag missing email clarifies the shorter rule wording "when available."
 
 Each exception row includes:
 
@@ -189,6 +190,12 @@ Current Q1 result under that definition:
 | 2025-03 | $440.70 | 9 |
 | 2025-04 | $356.97 | 7 |
 | 2025-05 | $446.20 | 9 |
+
+Reconciliation notes:
+
+- April revenue is `$356.97`. Adding quarantined orders `O1019` (`$24.99`) and `O1020` (`$12.99`) would produce `$394.95`, but the STTM sends their invalid foreign keys to the exception path rather than `fact_order`.
+- Q4 groups revenue by the order's shipping state, not the customer's home state.
+- Q5 uses the same five exception categories as Q3. Three of six valid customers with negative tickets (`C001`, `C002`, and `C018`) have at least one matching order/payment exception.
 
 See `outputs/business_answers.md` for the full generated answers, tables, and charts.
 

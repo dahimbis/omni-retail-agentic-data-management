@@ -57,6 +57,7 @@ After the core pipeline worked, we continued steering Cursor to harden the submi
 5. **Submission packaging** - Prepared GitHub-oriented contents; noted shared-PC credential issues for push.
 6. **Stakeholder report polish** - Added generated matplotlib charts for Q1, Q2, Q4, and DQ severity, with full business question titles and no em dashes in docs/reports.
 7. **Final review and fixes** - Ran separate read-only reviews of pipeline logic, tests, outputs, and documentation, then implemented the findings. The final version preserves PMT019/PMT020 in the audit layer, separates revenue eligibility from exception status, removes duplicate exception counting, stops report code from rewriting `README.md`, centralizes Q3/Q5 logic, adds deterministic query sorting, validates input schemas, and adds regression tests for Q1 to Q5, defect keys, schemas, reconciliation, and generated files.
+8. **Cross-solution reconciliation** - Compared independently generated results and traced differences to explicit business rules. Restored the C004 missing-email exception based on the STTM, verified that April's `$37.98` difference came from quarantined orders O1019/O1020, confirmed Q4 uses shipping state, and confirmed Q5 overlap is C001/C002/C018 (3 of 6).
 
 Net result: a local, reproducible OmniRetail data-management solution with verified analytics and clear judgment on completed revenue.
 

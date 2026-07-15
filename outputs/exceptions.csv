@@ -10,6 +10,7 @@ DQ015,payments,PMT019,High,payment references order excluded from fact_order: O1
 DQ015,payments,PMT020,High,payment references order excluded from fact_order: O1020,Hold payment in the audit layer until the related order keys are repaired
 TRANSFORM_DEDUP_CUSTOMER,customers,C006,High,Duplicate customer_id dropped; kept earliest/most-complete row,Merge profiles in source MDM and retain single survivor key
 TRANSFORM_DEDUP_ORDER,orders,O1018,High,Duplicate order_id dropped,Investigate source double-write; keep single canonical order row
+DQ002,customers,C004,Medium,missing email,Request missing email or correct invalid syntax before marketing use
 DQ011,support_tickets,T010,Medium,unparseable created_ts=bad_timestamp,Fix malformed ticket timestamp in source system
 DQ012,support_tickets,T005,Medium,invalid customer_key=C999,Link ticket to valid customer_key or quarantine
 DQ013,orders,O1015,Medium,completed order uses inactive product P011,Flag completed sales of inactive products for catalog review

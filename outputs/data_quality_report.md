@@ -17,10 +17,10 @@ Generated from the curated DuckDB model and 16 data quality checks.
 | fact_payment | 27 |
 | fact_customer_issue | 9 |
 
-- Rules passed: **5**
-- Rules failed: **11**
-- Exception rows: **17**
-- Distinct affected records: **17**
+- Rules passed: **4**
+- Rules failed: **12**
+- Exception rows: **18**
+- Distinct affected records: **18**
 
 The exception report also retains non-duplicated transform resolution events and informational fuzzy-match flags. These are not additional DQ rules.
 
@@ -29,7 +29,7 @@ The exception report also retains non-duplicated transform resolution events and
 | severity | exception_count |
 | --- | --- |
 | High | 11 |
-| Medium | 6 |
+| Medium | 7 |
 | Low | 0 |
 
 ![Exception count by severity](charts/dq_exceptions_by_severity.png)
@@ -39,7 +39,7 @@ The exception report also retains non-duplicated transform resolution events and
 | rule_id | description | severity | status | fail_count |
 | --- | --- | --- | --- | --- |
 | DQ001 | customer_id must be unique after duplicate resolution | High | PASS | 0 |
-| DQ002 | email should be present and syntactically valid when available | Medium | PASS | 0 |
+| DQ002 | email must be present and syntactically valid | Medium | FAIL | 1 |
 | DQ003 | country and state must be standardized | Medium | PASS | 0 |
 | DQ004 | order_id must be unique | High | PASS | 0 |
 | DQ005 | customer_id must exist in customers | High | FAIL | 1 |
@@ -72,6 +72,7 @@ Full detail: `exceptions.csv` (`dq_exception_report`).
 | DQ015 | payments | PMT020 | High | payment references order excluded from fact_order: O1020 | Hold payment in the audit layer until the related order keys are repaired |
 | TRANSFORM_DEDUP_CUSTOMER | customers | C006 | High | Duplicate customer_id dropped; kept earliest/most-complete row | Merge profiles in source MDM and retain single survivor key |
 | TRANSFORM_DEDUP_ORDER | orders | O1018 | High | Duplicate order_id dropped | Investigate source double-write; keep single canonical order row |
+| DQ002 | customers | C004 | Medium | missing email | Request missing email or correct invalid syntax before marketing use |
 | DQ011 | support_tickets | T010 | Medium | unparseable created_ts=bad_timestamp | Fix malformed ticket timestamp in source system |
 | DQ012 | support_tickets | T005 | Medium | invalid customer_key=C999 | Link ticket to valid customer_key or quarantine |
 | DQ013 | orders | O1015 | Medium | completed order uses inactive product P011 | Flag completed sales of inactive products for catalog review |

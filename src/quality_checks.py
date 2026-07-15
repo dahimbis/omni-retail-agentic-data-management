@@ -9,7 +9,7 @@ EMAIL_RE = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
 
 SUGGESTED_ACTIONS = {
     "DQ001": "Enforce unique customer_key in curated load and fix source duplicates",
-    "DQ002": "Correct invalid email syntax before marketing use",
+    "DQ002": "Request missing email or correct invalid syntax before marketing use",
     "DQ003": "Apply reference data standardization for country/state",
     "DQ004": "Deduplicate orders at ingest and block duplicate order_id writes",
     "DQ005": "Quarantine order; repair customer_key via MDM lookup",
@@ -97,14 +97,17 @@ def run_quality_checks(con: duckdb.DuckDBPyConnection) -> None:
     email_issues = con.execute(
         f"""
         SELECT customer_key AS record_key,
-               'invalid email syntax: ' || email AS issue_description
+               CASE
+                 WHEN email IS NULL OR trim(email) = '' THEN 'missing email'
+                 ELSE 'invalid email syntax: ' || email
+               END AS issue_description
         FROM dim_customer
-        WHERE email IS NOT NULL
-          AND trim(email) <> ''
-          AND NOT regexp_matches(email, '{EMAIL_RE}')
+        WHERE email IS NULL
+           OR trim(email) = ''
+           OR NOT regexp_matches(email, '{EMAIL_RE}')
         """
     ).df()
-    record("DQ002", "email should be present and syntactically valid when available", "Medium",
+    record("DQ002", "email must be present and syntactically valid", "Medium",
            _append(exceptions, "DQ002", "customers", email_issues, "Medium"))
 
     geo_issues = con.execute(

@@ -16,6 +16,7 @@ Build a small local OmniRetail data-management solution that turns messy operati
 | Object | Decision |
 |--------|----------|
 | `dim_customer` | Remove duplicate `customer_id` rows; keep earliest signup then highest completeness; set `duplicate_resolution_flag` when a sibling row was dropped. Shared phones are flagged only (not merged). |
+| Customer email | Lowercase supplied values and flag missing or invalid email. The STTM explicitly requires missing-email exceptions, resolving the shorter DQ002 wording. |
 | Country/state | Map USA/US/United States to `USA`; map full state names to 2-letter codes. |
 | `fact_order` | Curated fact keeps valid customer+product IDs only. Audit table `int_order` keeps invalid-ID rows for exception inventory. Adds calculated amount, variance, and `is_revenue_eligible`. |
 | `fact_payment` / tickets | Invalid references are excluded from curated facts and retained in audit tables. Payments linked to quarantined orders are explicitly flagged. Tickets with bad timestamps remain available with a null curated date and a DQ exception. |
@@ -24,6 +25,7 @@ Build a small local OmniRetail data-management solution that turns messy operati
 ## Assumptions
 
 - Exact ID duplicates are resolved automatically; near-duplicates (shared phone, e.g. C001/C019) stay separate until MDM confirms a merge.
+- C019 is not automatically merged into C001 because C016 shares the same phone number. Name and phone similarity are surfaced as evidence, not treated as authoritative identity resolution.
 - "Completed revenue" means `is_revenue_eligible = true` on curated fact rows.
 - Settled vs completed order total comparison uses gross order amount (source `order_total`), not recalculated amount, so DQ008 (price math) and DQ010 (payment match) stay distinct.
 - Missing payments for completed orders are reported as DQ014, an explicit extension of DQ010 and business question 3.
@@ -59,6 +61,7 @@ The final review led to concrete hardening work:
 6. Revenue eligibility and Q3/Q5 exception logic are each defined once and reused.
 7. Business query tie-breaking is deterministic, and Q4 explicitly uses order shipping state.
 8. Automated regression tests cover Q1 to Q5, expected defect keys, schemas, reconciliation, and generated reports.
+9. A final cross-solution reconciliation restored the C004 missing-email exception required by the STTM and documented why April revenue, Q4 geography, and Q5 overlap can differ under other definitions.
 
 ## Verification performed
 
