@@ -1,8 +1,10 @@
 ﻿# AI Usage
 
-## Tool used
+## Tools used
 
-**Cursor** (agentic coding assistant) with local project execution.
+- **Cursor (Auto agent router)** - primary agentic coding assistant for planning, implementation, debugging, docs, and report polish.
+- **Claude Code** - used for reviewing the solution (structure, logic, and submission completeness).
+- **Codex** - used as an additional review / cross-check on implementation and documentation.
 
 ## How the tool was steered
 

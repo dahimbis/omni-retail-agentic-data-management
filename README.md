@@ -254,7 +254,7 @@ Tests check that:
 
 ## Build process notes
 
-Cursor was used to plan, generate, and debug the pipeline. Generated code was run and checked before acceptance. Structure and schema were adjusted after reading the full take-home brief, and business answers were recomputed independently to confirm they come from the model. Details, prompts, and verification notes are in `AI_USAGE.md`.
+Cursor (Auto agent router) was used to plan, generate, and debug the pipeline. Claude Code and Codex were used for review and cross-checks. Generated code was run and verified before acceptance. Details are in `AI_USAGE.md`.
 
 ## Assumptions and limitations
 
