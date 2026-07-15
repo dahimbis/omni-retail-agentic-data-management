@@ -86,10 +86,10 @@ These instructions demonstrate problem decomposition, constrained code generatio
 ## Manual judgment and verification
 
 - I reconciled 20 raw customers to 19 curated customers after resolving the repeated C006 ID.
-- I reconciled 31 raw order rows to 30 distinct order IDs and 28 curated `fact_order` rows after removing O1018 and quarantining O1019/O1020.
+- I reconciled 31 raw order rows to 30 distinct order IDs and 28 curated `fact_order` rows after removing one duplicate O1018 row while retaining its canonical order, then quarantining O1019/O1020.
 - I spot-checked O1021: source total `$50.00`, calculated amount `$44.00`, and settled payment `$44.00`, producing separate order-arithmetic and payment-mismatch findings.
 - I verified O1024 has no settled payment, PMT029 references nonexistent O9999, and T010 has an invalid timestamp.
-- I confirmed April's `$37.98` alternate total comes from adding quarantined O1019 and O1020 to curated revenue.
+- I confirmed the `$37.98` difference between April's curated revenue (`$356.97`) and the alternate total (`$394.95`) comes from adding quarantined O1019 and O1020.
 - I confirmed Q4 uses order shipping state and Q5 consistently uses the same exception definition as Q3.
 - I ran the pipeline and pytest after the final corrections and inspected the generated reports rather than trusting generated narrative text.
 

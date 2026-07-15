@@ -19,8 +19,8 @@ Build a small local OmniRetail data-management solution that turns operational e
 | Customer email | Lowercase supplied values and flag missing or invalid email. The STTM explicitly requires missing-email exceptions, resolving the shorter DQ002 wording. |
 | Country/state | Map USA/US/United States to `USA`; map full state names to 2-letter codes. |
 | `fact_order` | Curated fact keeps valid customer+product IDs only. Audit table `int_order` keeps invalid-ID rows for exception inventory. Adds calculated amount, variance, and `is_revenue_eligible`. |
-| `fact_payment` / tickets | Invalid references are excluded from curated facts and retained in audit tables. Payments linked to quarantined orders are explicitly flagged. Tickets with bad timestamps remain available with a null curated date and a DQ exception. |
-| Revenue metrics | `is_revenue_eligible` requires completed status, valid keys, a parsed date, and positive quantity. Payment and inactive-product exceptions remain visible but do not silently change the requested order-revenue definition. |
+| `fact_payment` / tickets | Repeated payment IDs are resolved using payment timestamp and source-row order. Invalid references are excluded from curated facts and retained in audit tables. Payments linked to quarantined orders are explicitly flagged. Tickets with bad timestamps remain available with a null curated date and a DQ exception. |
+| Revenue metrics | `is_revenue_eligible` requires completed status, valid keys, a parsed date, and positive quantity. O1030 remains in `fact_order` for audit but is excluded from revenue because its quantity is negative. Payment and inactive-product exceptions remain visible without changing the requested order-revenue definition. |
 
 ## Assumptions
 

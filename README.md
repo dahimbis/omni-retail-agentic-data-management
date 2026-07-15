@@ -15,7 +15,7 @@ The pipeline processes the supplied OmniRetail datasets and produces:
 
 ## Snapshot
 
-The pipeline generates mutually exclusive counts for completed orders that are clear and completed orders requiring review. See `outputs/order_health_snapshot.md` for the current table. The chart refreshes on every pipeline run without modifying this README.
+The pipeline generates mutually exclusive counts for completed orders that are clear and completed orders requiring review. The current seven review orders include the five Q3 orders, O1015 for an inactive product, and O1018 because the source contained a duplicate row. See `outputs/order_health_snapshot.md` for the current table. The chart refreshes on every pipeline run without modifying this README.
 
 ![Order health snapshot](outputs/charts/readme_order_health.png)
 
@@ -129,17 +129,19 @@ The pipeline also keeps audit tables (`int_order`, `int_payment`, `int_customer_
 
 ### Order transformation
 
-- Remove duplicate order `O1018`
+- Remove one duplicate `O1018` row while retaining one canonical O1018 order
 - Parse mixed timestamp formats into an order date
 - Standardize shipping state
 - Cast quantity and totals to numeric
 - Calculate `calculated_order_amount = quantity x unit_price`
 - Calculate `order_amount_variance = gross_order_amount - calculated_order_amount`
 - Keep orders with invalid customer or product IDs out of `fact_order`, but still store them in the audit tables and exception report
+- Keep O1030 in `fact_order` for audit, but exclude it from revenue because its completed quantity is negative
 
 ### Payment reconciliation
 
 - Parse payment dates and cast amounts
+- Resolve repeated `payment_id` values deterministically before loading `fact_payment`
 - Compare settled payments to completed order totals
 - Detect missing payments, amount mismatches, and orphan payments
 - Preserve payments linked to quarantined orders in `int_payment` and flag them before excluding them from `fact_payment`
