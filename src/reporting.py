@@ -563,6 +563,11 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
         "against the curated model. Values are not hard-coded. Each section shows "
         "the table first, then the chart. Charts refresh when the pipeline runs.",
         "",
+        "`input_data/expected_business_questions.md` instructs the candidate to use "
+        "the curated model. O1019 and O1020 therefore remain in the audit and "
+        "exception outputs but are excluded from revenue because their customer or "
+        "product references are invalid.",
+        "",
     ]
     sections.extend(executive_summary)
     sections.extend(

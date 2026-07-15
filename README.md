@@ -186,6 +186,8 @@ Outputs:
 
 Answers are produced by `sql/business_questions.sql` against the curated model. They are not hard-coded. Each pipeline run also writes charts under `outputs/charts/` and embeds them in `business_answers.md` with the **table first, then the chart**.
 
+The instruction in `input_data/expected_business_questions.md` says to answer the questions using the curated model. Therefore, O1019 and O1020 remain in the audit and exception outputs but are excluded from completed-revenue calculations because their customer or product references are invalid.
+
 **Completed revenue definition:** `is_revenue_eligible = true`, meaning completed status, valid customer and product keys, a parsed order date, and quantity greater than zero. Revenue eligibility is separate from data quality status. For example, an eligible order can still have a payment mismatch or use an inactive product, and that exception remains visible for review.
 
 | Question | Method in short | Visual |
