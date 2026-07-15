@@ -56,6 +56,13 @@ After the core pipeline worked, we continued steering Cursor to harden the submi
 4. **Resolved competing Q1 definitions** - Chose curated completed revenue with quantity > 0: Mar `440.70`, Apr `356.97`, May `446.20`. Defective rows stay in exceptions / Q3.
 5. **Submission packaging** - Prepared GitHub-oriented contents; noted shared-PC credential issues for push.
 6. **Stakeholder report polish** - Added generated matplotlib charts for Q1, Q2, Q4, and DQ severity, with full business question titles and no em dashes in docs/reports.
+7. **Final review** - Ran separate read-only reviews of pipeline logic, tests, outputs, and documentation. The reviews confirmed the five business answers and identified follow-up work before final submission:
+   - Preserve and flag payments linked to orders excluded from the trusted order table (PMT019 and PMT020).
+   - Clarify that revenue-eligible orders and exception orders can overlap.
+   - Avoid counting the same source defect twice under transform and DQ rule IDs.
+   - Stop report generation from rewriting `README.md`.
+   - Add deterministic sorting for tied customer totals.
+   - Add automated regression tests for Q1 to Q5, report files, and implemented DQ rules.
 
 Net result: a local, reproducible OmniRetail data-management solution with verified analytics and clear judgment on completed revenue.
 

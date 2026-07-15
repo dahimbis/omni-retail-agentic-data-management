@@ -46,6 +46,21 @@ Build a small local OmniRetail data-management solution that turns messy operati
 
 **How new data is expected to land today:** update the extract files in `input_data/`, rerun the pipeline, then review the new outputs. That keeps the take-home simple and fully reproducible.
 
+## Final audit follow-up
+
+A final read-only review confirmed that the business answers match the current sample data. It also identified the following implementation improvements to complete before final submission:
+
+1. Add an explicit exception for payments tied to orders excluded because of invalid customer or product IDs (PMT019 and PMT020).
+2. Correct the order-health snapshot so its categories are mutually exclusive, or clearly explain their overlap.
+3. Separate transform events from DQ failures so the same source defect is not counted twice.
+4. Register the missing-payment check in the DQ rule summary, or label it as a business-only extension.
+5. Stop the pipeline from modifying `README.md` during report generation.
+6. Add a secondary sort key for tied customer values in Q2.
+7. Add automated checks for the five business answers, report generation, schema columns, and the full intentional-defect list.
+8. Clarify that STTM and DQ CSV files are reference specifications; the current Python logic is not metadata-driven.
+
+This section should be updated after the fixes are completed so it reflects the final implementation.
+
 ## Verification performed
 
 - Re-ran `python -m src.pipeline` end-to-end from a clean DuckDB file.
