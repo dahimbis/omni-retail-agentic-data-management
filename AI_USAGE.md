@@ -6,19 +6,47 @@
 - **Claude Code** was used to review structure, transformation logic, and submission completeness.
 - **Codex** was used as an additional cross-check of implementation and documentation.
 
-## Representative prompts I gave
+## Key prompts and task instructions
 
-The following excerpts are lightly corrected for spelling but preserve the tasks and constraints I gave the tools:
+I used prompts such as the following to direct the work from initial analysis through final verification:
 
-1. **Starting and planning:** “I was given this assessment and am not sure where to start. Inspect the input files and create a plan.”
-2. **Implementation:** “Implement the plan as specified. Do not stop until all tasks are completed.”
-3. **Requirement alignment:** “Read `Take-home-exercise_v1` and follow the recommended repository structure.”
-4. **Stakeholder reporting:** “Add generated charts where useful, use the full business-question titles, and keep the tables easy for stakeholders to follow.”
-5. **Operational behavior:** “Document what happens when new data is added, including that there is no streaming, automatic detection, or incremental loading.”
-6. **FDE-focused review:** “Fix the audit issues while following the project requirements and remember this is for an FDE role.”
-7. **Independent reconciliation:** “Compare these independently generated results and determine which definitions are correct or wrong.”
+1. **Assessment review and planning**
 
-These prompts show how I moved from problem decomposition to implementation, review, correction, and verification rather than accepting the first generated answer.
+   > Inspect all files in `input_data`, including the business context, STTM, data-quality rules, and expected business questions. Identify the intentional data issues, propose a local architecture, and produce an implementation plan before writing code.
+
+2. **Local pipeline implementation**
+
+   > Implement the approved plan using Python, SQL, pandas, and DuckDB. Keep execution local, avoid paid APIs or cloud services, and provide a single pipeline entry point that performs ingestion, transformation, quality checks, and reporting.
+
+3. **Curated model and data quality**
+
+   > Build the suggested customer, product, order, payment, and support-ticket tables. Preserve invalid records in audit tables, apply the STTM transformations, implement the supplied DQ rules, and add documented extensions where they improve reconciliation.
+
+4. **Exception handling**
+
+   > Generate a row-level exception report containing the rule ID, dataset, record key, severity, issue description, and recommended action. Ensure invalid foreign keys and orphan or quarantined payments are visible rather than silently discarded.
+
+5. **Testing and verification**
+
+   > Add automated tests for source-to-curated row counts, referential integrity, duplicate resolution, amount reconciliation, timestamp parsing, known defect keys, all five business answers, and generated report files. Run the tests and investigate any failures instead of changing expected values without checking the source data.
+
+6. **Repository requirement alignment**
+
+   > Re-read `Take-home-exercise_v1` and align the project with the recommended repository structure and required deliverables. Include `README.md`, `AI_USAGE.md`, `APPROACH.md`, SQL files, tests, and generated outputs.
+
+7. **Business reporting**
+
+   > Make the reports understandable to business and technical readers. Use the full business-question wording, present tables before charts, generate charts only where useful, and clearly define completed revenue, state, and exception scope.
+
+8. **Operational documentation**
+
+   > Explain how the pipeline handles new data. Document that it performs a manual full refresh and does not provide streaming, automatic file detection, incremental loading, or production orchestration.
+
+9. **FDE-focused audit and reconciliation**
+
+   > Review the complete solution against the exercise rubric from an FDE perspective. Check whether the implementation is explainable, reproducible, and auditable. Compare independently generated results, trace any differences to business definitions, and correct issues without changing validated business results.
+
+These instructions demonstrate problem decomposition, constrained code generation, iterative review, debugging, and independent verification rather than acceptance of the first generated output.
 
 ## How I steered the tools
 
@@ -27,7 +55,7 @@ These prompts show how I moved from problem decomposition to implementation, rev
 3. I required a reproducible pipeline command and generated answers rather than hard-coded totals.
 4. I asked the tools to re-read the full exercise when the first repository layout did not match the recommended structure.
 5. I repeatedly asked for clearer wording when terms such as “after dedupe” or “fix rule if needed” were not understandable to a business reviewer.
-6. I requested a final audit from the perspective of an FDE who must explain technical decisions to customers and stakeholders.
+6. I requested a final audit from the perspective of an FDE who must explain technical decisions to customers and business users.
 
 ## Agent-generated work I accepted
 
@@ -35,7 +63,7 @@ These prompts show how I moved from problem decomposition to implementation, rev
 - SQL artifacts under `sql/` for the curated model and five business questions.
 - Pytest coverage for transformations, reconciliation, expected defects, business answers, schemas, and generated reports.
 - Drafts of `README.md`, `APPROACH.md`, and this AI usage record, which I reviewed and corrected for accuracy.
-- Generated Markdown reports, CSV exceptions, DuckDB output, and stakeholder charts.
+- Generated Markdown reports, CSV exceptions, DuckDB output, and business-facing charts.
 
 ## Outputs I rejected or corrected
 
@@ -82,4 +110,4 @@ These prompts show how I moved from problem decomposition to implementation, rev
 - Introduce historical customer tracking if the exercise expanded beyond a full-refresh take-home.
 - Expand entity-resolution evidence beyond phone and name before automatically merging different customer IDs.
 
-The final result is AI-assisted but not a black box: generated work was reviewed against source records, reconciled, tested, corrected, and documented.
+Before accepting the final output, I confirmed 20 raw customer rows became 19 curated customers, 31 raw order rows became 30 canonical orders and 28 curated orders, the completed-revenue bridge had a zero difference, all known defect records appeared under the expected rules, and all 10 automated tests passed.

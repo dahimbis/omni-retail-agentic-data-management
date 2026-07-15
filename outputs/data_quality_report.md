@@ -2,6 +2,13 @@
 
 Generated from the curated DuckDB model and 16 data quality checks.
 
+## Executive summary
+
+- **12 of 16 rules require attention.** 4 rules passed without exceptions.
+- **11 high-severity exception rows should be reviewed first.** Priority record keys: O1019, O1020, O1030, O1021, PMT029, PMT021, O1024, PMT019, PMT020, C006, O1018.
+- The report contains **18 exception rows affecting 18 distinct records**.
+- Invalid references remain available in audit tables but are excluded from curated fact relationships, allowing analytics and remediation to proceed separately.
+
 ## Pipeline row counts
 
 | table_name | row_count |
@@ -54,6 +61,12 @@ The exception report also retains non-duplicated transform resolution events and
 | DQ014 | completed orders should have a settled payment | High | FAIL | 1 |
 | DQ015 | payments tied to quarantined orders must remain visible | High | FAIL | 2 |
 | DQ016 | payment_id must be unique after duplicate resolution | High | PASS | 0 |
+
+## Recommended actions
+
+1. Assign the high-severity order and payment records in `exceptions.csv` to data owners for reference, quantity, and payment correction.
+2. Resolve medium-severity customer, ticket, and catalog issues before using those fields for outreach or operational reporting.
+3. Rerun the pipeline after source corrections and confirm that failed-rule and exception counts decrease while the reconciliation difference remains zero.
 
 ## Exception preview
 

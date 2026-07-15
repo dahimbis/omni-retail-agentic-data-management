@@ -110,7 +110,7 @@ def _save_bar_chart(
 
 
 def _write_charts(bq_frames: list[pd.DataFrame]) -> dict[str, str]:
-    """Create stakeholder charts. Returns markdown-relative image paths."""
+    """Create business-facing charts. Returns markdown-relative image paths."""
     images: dict[str, str] = {}
     if len(bq_frames) > 0 and not bq_frames[0].empty:
         q1 = bq_frames[0]
@@ -204,6 +204,7 @@ def _section_with_table_then_chart(
     table_df: pd.DataFrame | None,
     chart_path: str | None,
     chart_alt: str,
+    takeaway: str | None = None,
 ) -> list[str]:
     parts = [f"## {title}", ""]
     if intro:
@@ -214,6 +215,8 @@ def _section_with_table_then_chart(
         parts.extend(["_Query missing._\n", ""])
     if chart_path:
         parts.extend([f"![{chart_alt}]({chart_path})", ""])
+    if takeaway:
+        parts.extend([f"**Key takeaway:** {takeaway}", ""])
     return parts
 
 
@@ -420,11 +423,28 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
     unique_affected_records = len(
         exceptions[["dataset", "record_key"]].drop_duplicates()
     )
+    high_exception_count = int(sev.get("High", 0))
+    priority_records = ", ".join(
+        exceptions.loc[exceptions["severity"] == "High", "record_key"]
+        .astype(str)
+        .tolist()
+    )
     dq_report = "\n".join(
         [
             "# Data Quality Report",
             "",
             f"Generated from the curated DuckDB model and {len(dq)} data quality checks.",
+            "",
+            "## Executive summary",
+            "",
+            f"- **{failed} of {len(dq)} rules require attention.** "
+            f"{passed} rules passed without exceptions.",
+            f"- **{high_exception_count} high-severity exception rows should be reviewed first.** "
+            f"Priority record keys: {priority_records}.",
+            f"- The report contains **{len(exceptions)} exception rows affecting "
+            f"{unique_affected_records} distinct records**.",
+            "- Invalid references remain available in audit tables but are excluded from "
+            "curated fact relationships, allowing analytics and remediation to proceed separately.",
             "",
             "## Pipeline row counts",
             "",
@@ -445,6 +465,15 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
             "## Rule results",
             "",
             _md_table(dq),
+            "## Recommended actions",
+            "",
+            "1. Assign the high-severity order and payment records in `exceptions.csv` "
+            "to data owners for reference, quantity, and payment correction.",
+            "2. Resolve medium-severity customer, ticket, and catalog issues before using "
+            "those fields for outreach or operational reporting.",
+            "3. Rerun the pipeline after source corrections and confirm that failed-rule "
+            "and exception counts decrease while the reconciliation difference remains zero.",
+            "",
             "## Exception preview",
             "",
             "Full detail: `exceptions.csv` (`dq_exception_report`).",
@@ -459,6 +488,57 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
     bq_frames = _run_sql_file(con, SQL_DIR / "business_questions.sql")
     images = _write_charts(bq_frames)
 
+    q1_takeaway = q2_takeaway = q3_takeaway = q4_takeaway = q5_takeaway = None
+    executive_summary: list[str] = ["## Executive summary", ""]
+    total_revenue = None
+
+    if len(bq_frames) > 0 and not bq_frames[0].empty:
+        q1 = bq_frames[0]
+        total_revenue = float(q1["completed_revenue"].sum())
+        best_month = q1.loc[q1["completed_revenue"].astype(float).idxmax()]
+        q1_takeaway = (
+            f"Revenue-eligible completed orders total ${total_revenue:,.2f}. "
+            f"{best_month['month']} is the highest month at "
+            f"${float(best_month['completed_revenue']):,.2f}."
+        )
+        executive_summary.append(f"- **Revenue:** {q1_takeaway}")
+
+    if len(bq_frames) > 1 and not bq_frames[1].empty:
+        top_customer = bq_frames[1].iloc[0]
+        q2_takeaway = (
+            f"{top_customer['full_name']} ({top_customer['customer_key']}) has the "
+            f"highest completed order value at "
+            f"${float(top_customer['completed_order_value']):,.2f}."
+        )
+        executive_summary.append(f"- **Top customer:** {q2_takeaway}")
+
+    if len(bq_frames) > 2:
+        q3_takeaway = (
+            f"{len(bq_frames[2])} orders require review across the five exception "
+            "categories requested in the business question."
+        )
+        executive_summary.append(f"- **Order review:** {q3_takeaway}")
+
+    if len(bq_frames) > 3 and not bq_frames[3].empty:
+        top_state = bq_frames[3].iloc[0]
+        q4_takeaway = (
+            f"{top_state['state']} is the leading shipping state with "
+            f"${float(top_state['completed_revenue']):,.2f} in completed revenue."
+        )
+        executive_summary.append(f"- **Geography:** {q4_takeaway}")
+
+    if len(bq_frames) > 4 and not bq_frames[4].empty:
+        q5 = bq_frames[4].iloc[0]
+        q5_takeaway = (
+            f"{int(q5['also_have_exceptions'])} of "
+            f"{int(q5['negative_ticket_customers'])} customers with negative tickets "
+            f"also have a Q3 order/payment exception "
+            f"({float(q5['overlap_rate']) * 100:.1f}%). "
+            "This is a descriptive overlap, not evidence that one issue caused the other."
+        )
+        executive_summary.append(f"- **Customer support:** {q5_takeaway}")
+    executive_summary.append("")
+
     sections = [
         "# Business Question Answers",
         "",
@@ -467,6 +547,7 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
         "the table first, then the chart. Charts refresh when the pipeline runs.",
         "",
     ]
+    sections.extend(executive_summary)
     sections.extend(
         _section_with_table_then_chart(
             "Q1. What is completed revenue by month?",
@@ -476,15 +557,18 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
             bq_frames[0] if len(bq_frames) > 0 else None,
             images.get("q1"),
             "Q1 completed revenue by month",
+            q1_takeaway,
         )
     )
     sections.extend(
         _section_with_table_then_chart(
             "Q2. Who are the top 10 customers by completed order value?",
-            None,
+            "Customers are ranked by revenue-eligible completed order value. "
+            "Ties use customer key for a repeatable order.",
             bq_frames[1] if len(bq_frames) > 1 else None,
             images.get("q2"),
             "Q2 top customers",
+            q2_takeaway,
         )
     )
     sections.extend(
@@ -498,6 +582,8 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
             "",
             _md_table(bq_frames[2]) if len(bq_frames) > 2 else "_Query missing._\n",
             "",
+            f"**Key takeaway:** {q3_takeaway}" if q3_takeaway else "",
+            "",
         ]
     )
     sections.extend(
@@ -508,6 +594,7 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
             bq_frames[3] if len(bq_frames) > 3 else None,
             images.get("q4"),
             "Q4 completed revenue by state",
+            q4_takeaway,
         )
     )
     sections.extend(
@@ -526,7 +613,23 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
             "",
             _md_table(bq_frames[5]) if len(bq_frames) > 5 else "_Query missing._\n",
             "",
+            f"**Key takeaway:** {q5_takeaway}" if q5_takeaway else "",
+            "",
         ]
     )
+    if total_revenue is not None:
+        sections.extend(
+            [
+                "## Conclusion",
+                "",
+                f"The curated model reconciles ${total_revenue:,.2f} of revenue-eligible "
+                "completed orders for the supplied data. Business users can use the monthly, "
+                "customer, and state views for the current reporting period, while the data "
+                "team works through the order/payment exceptions listed in Q3 and "
+                "`exceptions.csv`. The support-ticket overlap should guide investigation, "
+                "not be interpreted as a causal relationship.",
+                "",
+            ]
+        )
 
     (OUTPUT_DIR / "business_answers.md").write_text("\n".join(sections), encoding="utf-8")

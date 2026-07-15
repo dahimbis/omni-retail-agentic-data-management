@@ -37,7 +37,7 @@ Build a small local OmniRetail data-management solution that turns messy operati
 - Invalid orders are excluded from curated facts (cleaner analytics) but remain in intermediate tables and the exception report (auditable).
 - Kept dependencies minimal: DuckDB, pandas, matplotlib, pytest.
 - `requirements.txt` communicates supported minimums; `requirements-lock.txt` records the exact versions used for final verification.
-- Reporting writes Markdown tables plus generated bar charts for key stakeholder views.
+- Reporting writes Markdown tables plus generated bar charts for key business views.
 
 ## Known limitations / next improvements
 

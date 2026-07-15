@@ -306,4 +306,8 @@ Cursor (Auto agent router) was used to plan, generate, and debug the pipeline. C
 - There is no file watcher, streaming ingest, or auto-detect for new drops. New data is processed only when someone updates `input_data/` and reruns the pipeline.
 - There is no incremental (delta-only) load and no SCD Type 2 history. Each run reprocesses the full current extract.
 
+## Conclusion
+
+The pipeline gives business users generated revenue, customer, state, and support-overlap views while giving data owners a separate work queue in `outputs/exceptions.csv`. The submitted run has a zero revenue-reconciliation difference, so the reported completed revenue is fully explained by the curated and quarantined order populations. Before using the data for operational decisions, owners should correct the high-severity reference, quantity, and payment issues, rerun the pipeline, and confirm that exception counts decrease without creating a reconciliation difference.
+
 More tradeoff detail is in `APPROACH.md`.
