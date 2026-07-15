@@ -29,7 +29,8 @@ omni-retail-agentic-data-management/
 ├── README.md
 ├── APPROACH.md          Design decisions and tradeoffs
 ├── AI_USAGE.md          How the agentic tool was used and verified
-└── requirements.txt
+├── requirements.txt     Supported minimum dependency versions
+└── requirements-lock.txt Exact versions used for final verification
 ```
 
 ## Technology stack
@@ -167,6 +168,7 @@ Outputs:
 
 - `outputs/exceptions.csv` for row-level investigation
 - `outputs/data_quality_report.md` for rule summary plus a severity chart
+- `outputs/reconciliation_report.md` for source-to-curated row and revenue bridges
 - `outputs/charts/` for generated PNG images used in the reports
 
 ## Business answers
@@ -180,7 +182,7 @@ Answers are produced by `sql/business_questions.sql` against the curated model. 
 | 1. What is completed revenue by month? | Sum revenue-eligible order totals by year-month | Bar chart |
 | 2. Who are the top 10 customers by completed order value? | Join revenue-eligible orders to `dim_customer`, aggregate, sort | Horizontal bar chart |
 | 3. Which orders have payment/FK/quantity exceptions? | List exception orders | Table |
-| 4. Which shipping states have the highest completed revenue? | Group revenue-eligible completed revenue by order shipping state | Bar chart |
+| 4. Which states have the highest completed revenue? | Group revenue-eligible completed revenue by order shipping state | Bar chart |
 | 5. Relationship between negative tickets and exceptions? | Customer overlap rate and detail | Tables |
 
 Current Q1 result under that definition:
@@ -206,6 +208,12 @@ cd omni-retail-agentic-data-management
 python -m pip install -r requirements.txt
 ```
 
+For the exact dependency versions used in the final verified run:
+
+```bash
+python -m pip install -r requirements-lock.txt
+```
+
 ## Running the pipeline
 
 ```bash
@@ -224,6 +232,7 @@ This regenerates:
 - `outputs/data_quality_report.md`
 - `outputs/exceptions.csv`
 - `outputs/business_answers.md`
+- `outputs/reconciliation_report.md`
 - `outputs/order_health_snapshot.md`
 - `outputs/charts/*.png`
 
@@ -247,13 +256,13 @@ Each run rebuilds the DuckDB database and report files from whatever is currentl
 python -m pytest tests/ -q
 ```
 
-This prints a summary such as `9 passed in 3.06s`. Runtime varies by computer. To display every test name while it runs:
+This prints a summary such as `10 passed in 3.50s`. Runtime varies by computer. To display every test name while it runs:
 
 ```bash
 python -m pytest tests/ -v
 ```
 
-The nine tests cover:
+The ten tests cover:
 
 1. Country and state standardization
 2. Customer duplicate resolution
@@ -262,8 +271,9 @@ The nine tests cover:
 5. Source-to-curated row reconciliation and referential integrity
 6. DQ001 to DQ016 plus the known intentional defects
 7. Quarantined-payment visibility and bad timestamp preservation
-8. Regression results for business questions Q1 to Q5
-9. Curated schema columns and generated report/chart files
+8. Missing and syntactically invalid email handling
+9. Regression results for business questions Q1 to Q5, including Q5 customer detail
+10. Curated schema columns and generated report/chart files
 
 The pipeline and tests are separate commands. `python -m src.pipeline` generates data products; `python -m pytest tests/ -v` verifies them and displays the test names.
 

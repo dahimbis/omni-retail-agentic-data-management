@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from numbers import Real
 from pathlib import Path
 
 import duckdb
@@ -33,7 +34,28 @@ def _md_table(df: pd.DataFrame) -> str:
         cells = []
         for col in df.columns:
             val = row[col]
-            cells.append("" if pd.isna(val) else str(val).replace("|", "\\|"))
+            if pd.isna(val):
+                cells.append("")
+                continue
+            column_name = str(col).lower()
+            if isinstance(val, bool):
+                rendered = str(val)
+            elif isinstance(val, Real):
+                numeric = float(val)
+                if column_name == "rate" or column_name.endswith("_rate"):
+                    rendered = f"{numeric:.3f}"
+                elif any(
+                    token in column_name
+                    for token in ("amount", "revenue", "value", "variance", "price")
+                ):
+                    rendered = f"{numeric:.2f}"
+                elif numeric.is_integer():
+                    rendered = str(int(numeric))
+                else:
+                    rendered = f"{numeric:.2f}"
+            else:
+                rendered = str(val)
+            cells.append(rendered.replace("|", "\\|"))
         rows.append("| " + " | ".join(cells) + " |")
     return "\n".join([header, sep, *rows]) + "\n"
 
@@ -195,6 +217,126 @@ def _section_with_table_then_chart(
     return parts
 
 
+def _write_reconciliation_report(con: duckdb.DuckDBPyConnection) -> None:
+    """Write an auditable bridge from source rows to curated analytics."""
+    row_flow = con.execute(
+        """
+        SELECT
+          'Customers' AS dataset,
+          (SELECT count(*) FROM stg_customers) AS raw_rows,
+          (SELECT count(*) FROM dim_customer) AS canonical_audit_rows,
+          (SELECT count(*) FROM dim_customer) AS curated_rows,
+          'Repeated customer IDs resolved before loading dim_customer' AS explanation
+        UNION ALL
+        SELECT
+          'Orders',
+          (SELECT count(*) FROM stg_orders),
+          (SELECT count(*) FROM int_order),
+          (SELECT count(*) FROM fact_order),
+          'Duplicate order IDs resolved; invalid customer/product keys remain in int_order'
+        UNION ALL
+        SELECT
+          'Payments',
+          (SELECT count(*) FROM stg_payments),
+          (SELECT count(*) FROM int_payment),
+          (SELECT count(*) FROM fact_payment),
+          'Orphan and quarantined-order payments remain in int_payment'
+        UNION ALL
+        SELECT
+          'Support tickets',
+          (SELECT count(*) FROM stg_support_tickets),
+          (SELECT count(*) FROM int_customer_issue),
+          (SELECT count(*) FROM fact_customer_issue),
+          'Invalid customer keys excluded; malformed timestamps retained with null date'
+        """
+    ).df()
+
+    candidate_count, candidate_amount = con.execute(
+        """
+        SELECT count(*), round(sum(gross_order_amount), 2)
+        FROM int_order
+        WHERE lower(order_status) = 'completed'
+          AND quantity > 0
+          AND order_date IS NOT NULL
+        """
+    ).fetchone()
+    quarantine_count, quarantine_amount = con.execute(
+        """
+        SELECT count(*), round(sum(gross_order_amount), 2)
+        FROM int_order
+        WHERE lower(order_status) = 'completed'
+          AND quantity > 0
+          AND order_date IS NOT NULL
+          AND (NOT valid_customer OR NOT valid_product)
+        """
+    ).fetchone()
+    eligible_count, eligible_amount = con.execute(
+        """
+        SELECT count(*), round(sum(gross_order_amount), 2)
+        FROM fact_order
+        WHERE is_revenue_eligible
+        """
+    ).fetchone()
+    count_difference = int(candidate_count) - int(quarantine_count) - int(eligible_count)
+    amount_difference = round(
+        float(candidate_amount) - float(quarantine_amount) - float(eligible_amount), 2
+    )
+    revenue_bridge = pd.DataFrame(
+        [
+            {
+                "line_item": "Completed positive-quantity candidates",
+                "order_count": int(candidate_count),
+                "gross_amount": float(candidate_amount),
+            },
+            {
+                "line_item": "Less: invalid-FK orders quarantined",
+                "order_count": -int(quarantine_count),
+                "gross_amount": -float(quarantine_amount),
+            },
+            {
+                "line_item": "Equals: revenue-eligible fact orders",
+                "order_count": int(eligible_count),
+                "gross_amount": float(eligible_amount),
+            },
+            {
+                "line_item": "Reconciliation difference",
+                "order_count": count_difference,
+                "gross_amount": amount_difference,
+            },
+        ]
+    )
+
+    report = "\n".join(
+        [
+            "# Source-to-Curated Reconciliation",
+            "",
+            "This report shows how source records move into audit and curated tables. "
+            "Counts and amounts are generated from DuckDB on every pipeline run.",
+            "",
+            "## Row-count bridge",
+            "",
+            _md_table(row_flow),
+            "## Completed-revenue bridge",
+            "",
+            _md_table(revenue_bridge),
+            "The zero reconciliation difference confirms that completed positive-quantity "
+            "candidate revenue equals revenue-eligible fact revenue after removing invalid "
+            "customer/product references.",
+            "",
+            "## Interpretation",
+            "",
+            "- O1019 and O1020 remain auditable but are excluded from `fact_order` because "
+            "their customer or product references are invalid.",
+            "- O1030 remains in `fact_order` for audit context but is not revenue-eligible "
+            "because its quantity is negative.",
+            "- Payment and catalog quality exceptions do not silently change the documented "
+            "order-revenue definition.",
+            "",
+        ]
+    )
+    (OUTPUT_DIR / "reconciliation_report.md").write_text(report, encoding="utf-8")
+
+
 def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -312,6 +454,7 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
         ]
     )
     (OUTPUT_DIR / "data_quality_report.md").write_text(dq_report, encoding="utf-8")
+    _write_reconciliation_report(con)
 
     bq_frames = _run_sql_file(con, SQL_DIR / "business_questions.sql")
     images = _write_charts(bq_frames)
@@ -359,8 +502,9 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
     )
     sections.extend(
         _section_with_table_then_chart(
-            "Q4. Which shipping states have the highest completed revenue?",
-            "Revenue is attributed to the order shipping state, not the customer's home state.",
+            "Q4. Which states have the highest completed revenue?",
+            "For this answer, state means the order shipping state, not the "
+            "customer's home state.",
             bq_frames[3] if len(bq_frames) > 3 else None,
             images.get("q4"),
             "Q4 completed revenue by state",

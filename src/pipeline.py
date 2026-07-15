@@ -40,6 +40,7 @@ def main() -> int:
     print(f"  - {OUTPUT_DIR / 'data_quality_report.md'}")
     print(f"  - {OUTPUT_DIR / 'exceptions.csv'}")
     print(f"  - {OUTPUT_DIR / 'business_answers.md'}")
+    print(f"  - {OUTPUT_DIR / 'reconciliation_report.md'}")
     print(f"  - {OUTPUT_DIR / 'order_health_snapshot.md'}")
     print(f"  - {OUTPUT_DIR / 'charts' / 'readme_order_health.png'}")
     print(f"  - {OUTPUT_DIR / 'charts' / 'dq_exceptions_by_severity.png'}")

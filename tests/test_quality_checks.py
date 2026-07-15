@@ -255,6 +255,29 @@ def test_quarantined_payments_and_bad_timestamp_remain_auditable(pipeline_con):
     assert ticket == (None, False)
 
 
+def test_dq002_flags_missing_and_invalid_email(tmp_path):
+    con = connect(tmp_path / "email_validation.duckdb")
+    try:
+        ingest_raw(con)
+        transform_all(con)
+        con.execute(
+            "UPDATE dim_customer SET email = 'invalid-email' WHERE customer_key = 'C003'"
+        )
+        run_quality_checks(con)
+        keys = set(
+            con.execute(
+                """
+                SELECT record_key
+                FROM dq_exception_report
+                WHERE rule_id = 'DQ002'
+                """
+            ).df()["record_key"]
+        )
+        assert keys == {"C003", "C004"}
+    finally:
+        con.close()
+
+
 def test_business_question_regressions(pipeline_con):
     frames = _run_sql_file(pipeline_con, ROOT / "sql" / "business_questions.sql")
     assert len(frames) == 6
@@ -297,6 +320,17 @@ def test_business_question_regressions(pipeline_con):
         "also_have_exceptions": 3.0,
         "overlap_rate": 0.5,
     }
+    q5_detail = frames[5].set_index("customer_key")
+    assert set(q5_detail.index[q5_detail["has_order_payment_exception"]]) == {
+        "C001",
+        "C002",
+        "C018",
+    }
+    assert set(q5_detail.index[~q5_detail["has_order_payment_exception"]]) == {
+        "C006",
+        "C014",
+        "C017",
+    }
 
 
 def test_curated_schema_and_generated_reports(pipeline_con, tmp_path, monkeypatch):
@@ -329,6 +363,7 @@ def test_curated_schema_and_generated_reports(pipeline_con, tmp_path, monkeypatc
         "business_answers.md",
         "data_quality_report.md",
         "exceptions.csv",
+        "reconciliation_report.md",
         "order_health_snapshot.md",
         "charts/dq_exceptions_by_severity.png",
         "charts/q1_revenue_by_month.png",
@@ -345,4 +380,8 @@ def test_curated_schema_and_generated_reports(pipeline_con, tmp_path, monkeypatc
 
     answers = (generated_dir / "business_answers.md").read_text(encoding="utf-8")
     assert "Q1. What is completed revenue by month?" in answers
-    assert "Q4. Which shipping states have the highest completed revenue?" in answers
+    assert "Q4. Which states have the highest completed revenue?" in answers
+    reconciliation = (generated_dir / "reconciliation_report.md").read_text(
+        encoding="utf-8"
+    )
+    assert "| Reconciliation difference | 0 | 0.00 |" in reconciliation

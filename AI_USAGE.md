@@ -1,68 +1,85 @@
 ﻿# AI Usage
 
-## Tools used
+## Tools I used
 
-- **Cursor (Auto agent router)** - primary agentic coding assistant for planning, implementation, debugging, docs, and report polish.
-- **Claude Code** - used for reviewing the solution (structure, logic, and submission completeness).
-- **Codex** - used as an additional review / cross-check on implementation and documentation.
+- **Cursor (Auto agent router)** was my primary agentic coding assistant for planning, implementation, debugging, tests, documentation, and report presentation.
+- **Claude Code** was used to review structure, transformation logic, and submission completeness.
+- **Codex** was used as an additional cross-check of implementation and documentation.
 
-## How the tool was steered
+## Representative prompts I gave
 
-1. **Problem decomposition** - Asked Cursor to inventory the candidate pack, read business context / STTM / DQ rules / expected questions, and produce an implementation plan before coding.
-2. **Constraint prompts** - Required local-only Python + DuckDB, no paid cloud services, reproducible single-command run, and answers generated from the curated model (not hard-coded).
-3. **Structure realignment** - After discovering `Take-home-exercise_v1.docx` lived outside the original Cursor workspace, asked Cursor to restructure to the recommended repository layout, enrich the suggested target model columns, split outputs, and add mandatory `AI_USAGE.md` / `APPROACH.md`.
-4. **Verification loop** - Ran the pipeline and pytest locally; inspected exception keys (e.g. O1021/PMT021, O1024, T010) against known intentional defects in the input files.
+The following excerpts are lightly corrected for spelling but preserve the tasks and constraints I gave the tools:
 
-## Important prompts / tasks given
+1. **Starting and planning:** “I was given this assessment and am not sure where to start. Inspect the input files and create a plan.”
+2. **Implementation:** “Implement the plan as specified. Do not stop until all tasks are completed.”
+3. **Requirement alignment:** “Read `Take-home-exercise_v1` and follow the recommended repository structure.”
+4. **Stakeholder reporting:** “Add generated charts where useful, use the full business-question titles, and keep the tables easy for stakeholders to follow.”
+5. **Operational behavior:** “Document what happens when new data is added, including that there is no streaming, automatic detection, or incremental loading.”
+6. **FDE-focused review:** “Fix the audit issues while following the project requirements and remember this is for an FDE role.”
+7. **Independent reconciliation:** “Compare these independently generated results and determine which definitions are correct or wrong.”
 
-- Inspect `input_data` and draft a stepwise data-management plan.
-- Implement ingest -> transform -> DQ -> analytics with DuckDB.
-- Catch duplicate customers/orders, mixed timestamps, invalid FKs, payment mismatches, suspicious quantities.
-- Re-read `Take-home-exercise_v1` and match the recommended structure exactly.
-- Add SQL artifacts, split report outputs, exception `suggested_action`, inactive-product check, and submission docs.
-- Add generated stakeholder charts and full business question titles in the reports.
+These prompts show how I moved from problem decomposition to implementation, review, correction, and verification rather than accepting the first generated answer.
 
-## Generated artifacts accepted
+## How I steered the tools
 
-- Pipeline modules under `src/` (`pipeline`, `ingest`, `transform`, `quality_checks`, `reporting`).
-- `sql/curated_model.sql` and `sql/business_questions.sql`.
-- Pytest suite in `tests/test_quality_checks.py`.
-- README / APPROACH drafts (edited for accuracy).
-- Generated PNG charts under `outputs/charts/`.
+1. I asked Cursor to inventory the candidate pack, read the business context, STTM, DQ rules, and expected questions, then propose an implementation plan before coding.
+2. I constrained the implementation to local Python, SQL, and DuckDB with no cloud services or paid APIs.
+3. I required a reproducible pipeline command and generated answers rather than hard-coded totals.
+4. I asked the tools to re-read the full exercise when the first repository layout did not match the recommended structure.
+5. I repeatedly asked for clearer wording when terms such as “after dedupe” or “fix rule if needed” were not understandable to a business reviewer.
+6. I requested a final audit from the perspective of an FDE who must explain technical decisions to customers and stakeholders.
 
-## Rejected or corrected tool output
+## Agent-generated work I accepted
 
-- Initial build used an invented folder layout (`omni_retail_dm/`) because the `.docx` brief was not in the workspace - **rejected** for submission packaging; replaced with `omni-retail-agentic-data-management/` per section 8 of the brief.
-- Early curated schema was STTM-minimal (missing phone, variance, suggested_action) - **extended** to the suggested target model in the brief.
-- Combined single Markdown report - **split** into `data_quality_report.md`, `exceptions.csv`, and `business_answers.md`.
-- Pandas `to_markdown` dependency - **replaced** with a small local Markdown table formatter.
-- Brief revenue queries originally included negative-quantity completed orders - **filtered** `quantity > 0` after manual check of O1030.
+- Modular pipeline code under `src/` for ingestion, transformation, quality checks, reporting, and orchestration.
+- SQL artifacts under `sql/` for the curated model and five business questions.
+- Pytest coverage for transformations, reconciliation, expected defects, business answers, schemas, and generated reports.
+- Drafts of `README.md`, `APPROACH.md`, and this AI usage record, which I reviewed and corrected for accuracy.
+- Generated Markdown reports, CSV exceptions, DuckDB output, and stakeholder charts.
 
-## Manual judgment / verification
+## Outputs I rejected or corrected
 
-- Confirmed row-count story: 20 raw customers -> 19 `dim_customer`; 31 raw orders -> 28 curated `fact_order` (after removing duplicate IDs and invalid keys from trusted facts).
-- Spot-checked O1021: order_total 50 vs qty x price 44 and settled payment 44 (DQ008 + DQ010).
-- Spot-checked O1024 missing payment and PMT029 orphan order O9999.
-- Confirmed negative-ticket overlap is computed from joins, not narrative text.
-- Reviewed exception severities and suggested actions for business readability.
+- The first build used an invented `omni_retail_dm/` layout. I rejected it and required the structure from section 8 of the exercise.
+- The first curated schema was too narrow and omitted fields such as phone, amount variance, and `suggested_action`. I required the fuller target model.
+- A single combined report was replaced with separate quality, exceptions, analytics, and reconciliation outputs.
+- A `pandas.to_markdown` dependency was replaced with a small local formatter to keep dependencies minimal.
+- Revenue initially included completed orders with non-positive quantity. I excluded O1030 after checking the source record and documenting the revenue definition.
+- Report code originally rewrote `README.md`. I removed that side effect so generated files remain under `outputs/`.
+- Transform and DQ exceptions initially counted some source defects twice. I kept one final exception representation for each duplicated semantic issue.
+- DQ002 temporarily treated a missing email as acceptable because the supplied rule said “when available.” I corrected it after re-checking the STTM instruction to flag missing email, so C004 is now reported.
 
-## What we did in follow-up iterations (this submission polish)
+## Failed attempts and debugging
 
-After the core pipeline worked, we continued steering Cursor to harden the submission and validate answers:
+- A shell command using Unix heredoc syntax failed in PowerShell. I changed the execution approach to Windows-compatible commands and temporary scripts.
+- README character encoding was damaged during punctuation cleanup. I rewrote the affected content with UTF-8-safe text.
+- GitHub push attempts exposed repository and shared-machine credential problems. I kept those environment issues separate from pipeline correctness and verified the project locally before submission.
+- An expanded regression test initially expected the wrong invalid-ticket key. I checked the raw JSONL, corrected the expected key from T012 to T005, and reran the suite.
 
-1. **Mapped the solution to `Take-home-exercise_v1`** - Confirmed required deliverables (folder layout, curated columns, DQ + exceptions, five business questions, README / APPROACH / AI_USAGE).
-2. **Improved README for reviewers** - Added a simple pipeline flowchart, clearer wording, and operational notes for new data.
-3. **Independently re-checked business answers** - Recomputed Q1 to Q5 from `curated.duckdb` and raw tickets. Confirmed Q3 defect keys (O1019, O1020, O1021, O1024, O1030) and Q5 overlap rate 0.5.
-4. **Resolved competing Q1 definitions** - Chose curated completed revenue with quantity > 0: Mar `440.70`, Apr `356.97`, May `446.20`. Defective rows stay in exceptions / Q3.
-5. **Submission packaging** - Prepared GitHub-oriented contents; noted shared-PC credential issues for push.
-6. **Stakeholder report polish** - Added generated matplotlib charts for Q1, Q2, Q4, and DQ severity, with full business question titles and no em dashes in docs/reports.
-7. **Final review and fixes** - Ran separate read-only reviews of pipeline logic, tests, outputs, and documentation, then implemented the findings. The final version preserves PMT019/PMT020 in the audit layer, separates revenue eligibility from exception status, removes duplicate exception counting, stops report code from rewriting `README.md`, centralizes Q3/Q5 logic, adds deterministic query sorting, validates input schemas, and adds regression tests for Q1 to Q5, defect keys, schemas, reconciliation, and generated files.
-8. **Cross-solution reconciliation** - Compared independently generated results and traced differences to explicit business rules. Restored the C004 missing-email exception based on the STTM, verified that April's `$37.98` difference came from quarantined orders O1019/O1020, confirmed Q4 uses shipping state, and confirmed Q5 overlap is C001/C002/C018 (3 of 6).
+## Manual judgment and verification
 
-Net result: a local, reproducible OmniRetail data-management solution with verified analytics and clear judgment on completed revenue.
+- I reconciled 20 raw customers to 19 curated customers after resolving the repeated C006 ID.
+- I reconciled 31 raw order rows to 30 distinct order IDs and 28 curated `fact_order` rows after removing O1018 and quarantining O1019/O1020.
+- I spot-checked O1021: source total `$50.00`, calculated amount `$44.00`, and settled payment `$44.00`, producing separate order-arithmetic and payment-mismatch findings.
+- I verified O1024 has no settled payment, PMT029 references nonexistent O9999, and T010 has an invalid timestamp.
+- I confirmed April's `$37.98` alternate total comes from adding quarantined O1019 and O1020 to curated revenue.
+- I confirmed Q4 uses order shipping state and Q5 consistently uses the same exception definition as Q3.
+- I ran the pipeline and pytest after the final corrections and inspected the generated reports rather than trusting generated narrative text.
+
+## Follow-up iterations
+
+1. Realigned the repository to the required submission structure.
+2. Added the complete curated columns and intermediate audit tables.
+3. Added DQ013 to DQ016 for inactive products, missing payments, quarantined-order payments, and payment-key uniqueness.
+4. Preserved PMT019/PMT020 in the audit layer instead of silently dropping them.
+5. Centralized Q3 and Q5 exception logic in `vw_order_exceptions`.
+6. Added deterministic tie-breaking and explicit revenue eligibility.
+7. Added input schema validation, generated charts, and regression tests.
+8. Reconciled independently produced results and documented why alternate totals differ.
 
 ## What I would improve next
 
-- More explicit prompt checkpoints before each major module (ingest, transform, DQ) with reviewer-style acceptance criteria.
-- Add a short manual reconciliation worksheet in outputs (source totals vs curated completed revenue).
-- Expand fuzzy-match tests for C001/C019 phone sharing beyond informational flags.
+- Add explicit acceptance criteria before each major agent-generated module.
+- Introduce historical customer tracking if the exercise expanded beyond a full-refresh take-home.
+- Expand entity-resolution evidence beyond phone and name before automatically merging different customer IDs.
+
+The final result is AI-assisted but not a black box: generated work was reviewed against source records, reconciled, tested, corrected, and documented.

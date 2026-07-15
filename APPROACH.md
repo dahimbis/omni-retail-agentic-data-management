@@ -36,6 +36,7 @@ Build a small local OmniRetail data-management solution that turns messy operati
 - `sttm_target_mapping.csv` and `data_quality_rules.csv` are reference specifications. The current implementation is intentionally explicit Python/SQL, not a metadata-driven rules engine.
 - Invalid orders are excluded from curated facts (cleaner analytics) but remain in intermediate tables and the exception report (auditable).
 - Kept dependencies minimal: DuckDB, pandas, matplotlib, pytest.
+- `requirements.txt` communicates supported minimums; `requirements-lock.txt` records the exact versions used for final verification.
 - Reporting writes Markdown tables plus generated bar charts for key stakeholder views.
 
 ## Known limitations / next improvements
@@ -60,12 +61,12 @@ The final review led to concrete hardening work:
 5. Report generation writes only under `outputs/` and no longer modifies `README.md`.
 6. Revenue eligibility and Q3/Q5 exception logic are each defined once and reused.
 7. Business query tie-breaking is deterministic, and Q4 explicitly uses order shipping state.
-8. Automated regression tests cover Q1 to Q5, expected defect keys, schemas, reconciliation, and generated reports.
+8. Automated regression tests cover Q1 to Q5, Q5 customer details, email validation, expected defect keys, schemas, reconciliation, and generated reports.
 9. A final cross-solution reconciliation restored the C004 missing-email exception required by the STTM and documented why April revenue, Q4 geography, and Q5 overlap can differ under other definitions.
 
 ## Verification performed
 
 - Re-ran `python -m src.pipeline` end-to-end from a clean DuckDB file.
 - Confirmed intentional defect catches: C006/O1018 duplicate IDs, O1019/O1020 bad IDs, PMT019/PMT020 quarantined-order payments, O1021 payment mismatch, O1024 missing payment, O1030 negative quantity, T010 bad timestamp, and P011 inactive product on O1015.
-- Ran `pytest tests/ -q`: 9 tests passed, covering reconciliation, references, schemas, all five business answers, expected defect keys, and generated report files.
+- Ran `pytest tests/ -q`: 10 tests passed, covering reconciliation, references, schemas, all five business answers, expected defect keys, email validation, and generated report files.
 - Confirmed charts regenerate under `outputs/charts/` for Q1, Q2, Q4, and DQ severity.

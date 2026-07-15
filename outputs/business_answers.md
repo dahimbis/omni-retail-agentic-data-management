@@ -8,9 +8,9 @@ Revenue-eligible completed orders: valid customer and product IDs, a parsed orde
 
 | month | completed_revenue | completed_order_count |
 | --- | --- | --- |
-| 2025-03 | 440.7 | 9 |
+| 2025-03 | 440.70 | 9 |
 | 2025-04 | 356.97 | 7 |
-| 2025-05 | 446.2 | 9 |
+| 2025-05 | 446.20 | 9 |
 
 
 ![Q1 completed revenue by month](charts/q1_revenue_by_month.png)
@@ -25,10 +25,10 @@ Revenue-eligible completed orders: valid customer and product IDs, a parsed orde
 | C007 | Sophia Miller | Gold | 99.98 | 2 |
 | C002 | Liam Nguyen | Silver | 89.99 | 2 |
 | C009 | Isabella Moore | Bronze | 83.25 | 2 |
-| C018 | Daniel Clark | Gold | 75.0 | 1 |
+| C018 | Daniel Clark | Gold | 75.00 | 1 |
 | C004 | Emma Brown | Gold | 74.97 | 1 |
 | C003 | Noah Williams | Bronze | 73.75 | 2 |
-| C013 | Charlotte Jackson | Silver | 59.0 | 1 |
+| C013 | Charlotte Jackson | Silver | 59.00 | 1 |
 
 
 ![Q2 top customers](charts/q2_top_customers.png)
@@ -41,14 +41,14 @@ This answer is intentionally limited to the five exception categories named in t
 | --- | --- | --- | --- | --- | --- | --- |
 | O1019 | C999 | P002 | completed | 1 | 24.99 | invalid_customer_reference |
 | O1020 | C001 | P999 | completed | 1 | 12.99 | invalid_product_reference |
-| O1021 | C002 | P008 | completed | 4 | 50.0 | payment_amount_mismatch |
-| O1024 | C009 | P006 | completed | 1 | 42.0 | missing_payment |
-| O1030 | C018 | P010 | completed | -1 | -21.0 | suspicious_quantity |
+| O1021 | C002 | P008 | completed | 4 | 50.00 | payment_amount_mismatch |
+| O1024 | C009 | P006 | completed | 1 | 42.00 | missing_payment |
+| O1030 | C018 | P010 | completed | -1 | -21.00 | suspicious_quantity |
 
 
-## Q4. Which shipping states have the highest completed revenue?
+## Q4. Which states have the highest completed revenue?
 
-Revenue is attributed to the order shipping state, not the customer's home state.
+For this answer, state means the order shipping state, not the customer's home state.
 
 | state | completed_revenue | completed_order_count |
 | --- | --- | --- |
@@ -57,7 +57,7 @@ Revenue is attributed to the order shipping state, not the customer's home state
 | WA | 192.98 | 3 |
 | CA | 169.72 | 4 |
 | TX | 141.98 | 3 |
-| NY | 117.0 | 2 |
+| NY | 117.00 | 2 |
 | FL | 65.99 | 3 |
 
 
@@ -71,7 +71,7 @@ The exception-customer group uses the same five categories as Q3 so the comparis
 
 | negative_ticket_customers | also_have_exceptions | overlap_rate |
 | --- | --- | --- |
-| 6.0 | 3.0 | 0.5 |
+| 6 | 3 | 0.500 |
 
 
 ### Customer detail
