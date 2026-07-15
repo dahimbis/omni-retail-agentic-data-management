@@ -1,15 +1,17 @@
-"""Write data-quality report, exceptions CSV, and business answers."""
+"""Write data-quality report, exceptions CSV, charts, and business answers."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 import duckdb
+import matplotlib.pyplot as plt
 import pandas as pd
 
 from src.ingest import OUTPUT_DIR
 
 SQL_DIR = Path(__file__).resolve().parents[1] / "sql"
+CHARTS_DIR = OUTPUT_DIR / "charts"
 
 
 def _md_table(df: pd.DataFrame) -> str:
@@ -31,7 +33,6 @@ def _md_table(df: pd.DataFrame) -> str:
 def _run_sql_file(con: duckdb.DuckDBPyConnection, path: Path) -> list[pd.DataFrame]:
     """Execute a multi-statement SQL file; return each SELECT result."""
     text = path.read_text(encoding="utf-8")
-    # strip line comments
     cleaned_lines = []
     for line in text.splitlines():
         if line.strip().startswith("--"):
@@ -45,6 +46,82 @@ def _run_sql_file(con: duckdb.DuckDBPyConnection, path: Path) -> list[pd.DataFra
         if cur.description is not None:
             results.append(cur.df())
     return results
+
+
+def _style_axes(ax) -> None:
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.grid(axis="y", linestyle="--", alpha=0.3)
+
+
+def _save_bar_chart(
+    categories: list[str],
+    values: list[float],
+    title: str,
+    ylabel: str,
+    filename: str,
+    horizontal: bool = False,
+) -> Path:
+    CHARTS_DIR.mkdir(parents=True, exist_ok=True)
+    path = CHARTS_DIR / filename
+    fig, ax = plt.subplots(figsize=(8, 4.5))
+    if horizontal:
+        ax.barh(categories, values, color="#2F6F8F")
+        ax.set_xlabel(ylabel)
+        ax.invert_yaxis()
+    else:
+        ax.bar(categories, values, color="#2F6F8F")
+        ax.set_ylabel(ylabel)
+        ax.tick_params(axis="x", rotation=0)
+    ax.set_title(title)
+    _style_axes(ax)
+    fig.tight_layout()
+    fig.savefig(path, dpi=140)
+    plt.close(fig)
+    return path
+
+
+def _write_charts(bq_frames: list[pd.DataFrame]) -> dict[str, str]:
+    """Create stakeholder charts. Returns markdown-relative image paths."""
+    images: dict[str, str] = {}
+    if len(bq_frames) > 0 and not bq_frames[0].empty:
+        q1 = bq_frames[0]
+        _save_bar_chart(
+            categories=q1["month"].astype(str).tolist(),
+            values=q1["completed_revenue"].astype(float).tolist(),
+            title="Q1: Completed revenue by month",
+            ylabel="Revenue ($)",
+            filename="q1_revenue_by_month.png",
+        )
+        images["q1"] = "charts/q1_revenue_by_month.png"
+
+    if len(bq_frames) > 1 and not bq_frames[1].empty:
+        q2 = bq_frames[1].copy()
+        labels = [
+            f"{row.customer_key} ({row.full_name})" for row in q2.itertuples(index=False)
+        ]
+        _save_bar_chart(
+            categories=labels,
+            values=q2["completed_order_value"].astype(float).tolist(),
+            title="Q2: Top 10 customers by completed order value",
+            ylabel="Completed order value ($)",
+            filename="q2_top_customers.png",
+            horizontal=True,
+        )
+        images["q2"] = "charts/q2_top_customers.png"
+
+    if len(bq_frames) > 3 and not bq_frames[3].empty:
+        q4 = bq_frames[3]
+        _save_bar_chart(
+            categories=q4["state"].astype(str).tolist(),
+            values=q4["completed_revenue"].astype(float).tolist(),
+            title="Q4: Completed revenue by state",
+            ylabel="Revenue ($)",
+            filename="q4_revenue_by_state.png",
+        )
+        images["q4"] = "charts/q4_revenue_by_state.png"
+
+    return images
 
 
 def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
@@ -80,11 +157,26 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
     passed = int((dq["status"] == "PASS").sum()) if not dq.empty else 0
     failed = int((dq["status"] == "FAIL").sum()) if not dq.empty else 0
 
+    # Optional small severity chart for DQ report
+    CHARTS_DIR.mkdir(parents=True, exist_ok=True)
+    sev = (
+        exceptions.groupby("severity").size().reindex(["High", "Medium", "Low"]).fillna(0)
+        if not exceptions.empty
+        else pd.Series({"High": 0, "Medium": 0, "Low": 0})
+    )
+    _save_bar_chart(
+        categories=[str(x) for x in sev.index.tolist()],
+        values=[float(x) for x in sev.values.tolist()],
+        title="Exception count by severity",
+        ylabel="Count",
+        filename="dq_exceptions_by_severity.png",
+    )
+
     dq_report = "\n".join(
         [
             "# Data Quality Report",
             "",
-            "Generated from curated DuckDB model and DQ001–DQ013 checks.",
+            "Generated from the curated DuckDB model and DQ001 to DQ013 checks.",
             "",
             "## Pipeline row counts",
             "",
@@ -93,12 +185,16 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
             f"- Rules failed: **{failed}**",
             f"- Exception rows: **{len(exceptions)}**",
             "",
+            "## Exception count by severity",
+            "",
+            "![Exception count by severity](charts/dq_exceptions_by_severity.png)",
+            "",
             "## Rule results",
             "",
             _md_table(dq),
             "## Exception preview",
             "",
-            f"Full detail: `exceptions.csv` (`dq_exception_report`).",
+            "Full detail: `exceptions.csv` (`dq_exception_report`).",
             "",
             _md_table(exceptions.head(40)),
             "",
@@ -106,30 +202,64 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
     )
     (OUTPUT_DIR / "data_quality_report.md").write_text(dq_report, encoding="utf-8")
 
-    # Business answers from sql/business_questions.sql
     bq_frames = _run_sql_file(con, SQL_DIR / "business_questions.sql")
-    labels = [
-        ("Q1 — Completed revenue by month", 0),
-        ("Q2 — Top 10 customers by completed order value", 1),
-        ("Q3 — Orders with payment / FK / quantity exceptions", 2),
-        ("Q4 — Completed revenue by state", 3),
-        ("Q5a — Negative tickets vs order/payment exceptions (summary)", 4),
-        ("Q5b — Negative tickets vs exceptions (customer detail)", 5),
-    ]
+    images = _write_charts(bq_frames)
+
     sections = [
         "# Business Question Answers",
         "",
         "Answers are generated with SQL from `sql/business_questions.sql` "
-        "against the curated/intermediate model (not hard-coded).",
+        "against the curated model. Values are not hard-coded. Charts are "
+        "created automatically each time the pipeline runs.",
+        "",
+        "## Q1. What is completed revenue by month?",
+        "",
+        "Trusted completed orders only (valid customer and product IDs, quantity greater than zero).",
         "",
     ]
-    for title, idx in labels:
-        sections.append(f"## {title}")
-        sections.append("")
-        if idx < len(bq_frames):
-            sections.append(_md_table(bq_frames[idx]))
-        else:
-            sections.append("_Query missing._\n")
-        sections.append("")
+    if "q1" in images:
+        sections.extend([f"![Q1 completed revenue by month]({images['q1']})", ""])
+    sections.extend(
+        [
+            _md_table(bq_frames[0]) if len(bq_frames) > 0 else "_Query missing._\n",
+            "",
+            "## Q2. Who are the top 10 customers by completed order value?",
+            "",
+        ]
+    )
+    if "q2" in images:
+        sections.extend([f"![Q2 top customers]({images['q2']})", ""])
+    sections.extend(
+        [
+            _md_table(bq_frames[1]) if len(bq_frames) > 1 else "_Query missing._\n",
+            "",
+            "## Q3. Which orders have payment mismatches, missing payments, "
+            "invalid customer references, invalid product references, or suspicious quantities?",
+            "",
+            _md_table(bq_frames[2]) if len(bq_frames) > 2 else "_Query missing._\n",
+            "",
+            "## Q4. Which states have the highest completed revenue?",
+            "",
+        ]
+    )
+    if "q4" in images:
+        sections.extend([f"![Q4 completed revenue by state]({images['q4']})", ""])
+    sections.extend(
+        [
+            _md_table(bq_frames[3]) if len(bq_frames) > 3 else "_Query missing._\n",
+            "",
+            "## Q5. Is there any visible relationship between negative support tickets "
+            "and order or payment exceptions?",
+            "",
+            "### Summary",
+            "",
+            _md_table(bq_frames[4]) if len(bq_frames) > 4 else "_Query missing._\n",
+            "",
+            "### Customer detail",
+            "",
+            _md_table(bq_frames[5]) if len(bq_frames) > 5 else "_Query missing._\n",
+            "",
+        ]
+    )
 
     (OUTPUT_DIR / "business_answers.md").write_text("\n".join(sections), encoding="utf-8")

@@ -1,6 +1,6 @@
 # Data Quality Report
 
-Generated from curated DuckDB model and DQ001–DQ013 checks.
+Generated from the curated DuckDB model and DQ001 to DQ013 checks.
 
 ## Pipeline row counts
 
@@ -20,6 +20,10 @@ Generated from curated DuckDB model and DQ001–DQ013 checks.
 - Rules passed: **3**
 - Rules failed: **10**
 - Exception rows: **21**
+
+## Exception count by severity
+
+![Exception count by severity](charts/dq_exceptions_by_severity.png)
 
 ## Rule results
 

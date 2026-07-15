@@ -1,8 +1,12 @@
 # Business Question Answers
 
-Answers are generated with SQL from `sql/business_questions.sql` against the curated/intermediate model (not hard-coded).
+Answers are generated with SQL from `sql/business_questions.sql` against the curated model. Values are not hard-coded. Charts are created automatically each time the pipeline runs.
 
-## Q1 — Completed revenue by month
+## Q1. What is completed revenue by month?
+
+Trusted completed orders only (valid customer and product IDs, quantity greater than zero).
+
+![Q1 completed revenue by month](charts/q1_revenue_by_month.png)
 
 | month | completed_revenue | completed_order_count |
 | --- | --- | --- |
@@ -11,13 +15,15 @@ Answers are generated with SQL from `sql/business_questions.sql` against the cur
 | 2025-05 | 446.2 | 9 |
 
 
-## Q2 — Top 10 customers by completed order value
+## Q2. Who are the top 10 customers by completed order value?
+
+![Q2 top customers](charts/q2_top_customers.png)
 
 | customer_key | full_name | loyalty_tier | completed_order_value | completed_orders |
 | --- | --- | --- | --- | --- |
 | C010 | Lucas Taylor | Gold | 194.98 | 2 |
-| C016 | Henry Martin | Silver | 133.98 | 2 |
 | C012 | James Thomas | Bronze | 133.98 | 2 |
+| C016 | Henry Martin | Silver | 133.98 | 2 |
 | C007 | Sophia Miller | Gold | 99.98 | 2 |
 | C002 | Liam Nguyen | Silver | 89.99 | 2 |
 | C009 | Isabella Moore | Bronze | 83.25 | 2 |
@@ -27,7 +33,7 @@ Answers are generated with SQL from `sql/business_questions.sql` against the cur
 | C013 | Charlotte Jackson | Silver | 59.0 | 1 |
 
 
-## Q3 — Orders with payment / FK / quantity exceptions
+## Q3. Which orders have payment mismatches, missing payments, invalid customer references, invalid product references, or suspicious quantities?
 
 | order_key | customer_key | product_key | order_status | quantity | gross_order_amount | issues |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -38,7 +44,9 @@ Answers are generated with SQL from `sql/business_questions.sql` against the cur
 | O1030 | C018 | P010 | completed | -1 | -21.0 | suspicious_quantity |
 
 
-## Q4 — Completed revenue by state
+## Q4. Which states have the highest completed revenue?
+
+![Q4 completed revenue by state](charts/q4_revenue_by_state.png)
 
 | state | completed_revenue | completed_order_count |
 | --- | --- | --- |
@@ -51,14 +59,16 @@ Answers are generated with SQL from `sql/business_questions.sql` against the cur
 | FL | 65.99 | 3 |
 
 
-## Q5a — Negative tickets vs order/payment exceptions (summary)
+## Q5. Is there any visible relationship between negative support tickets and order or payment exceptions?
+
+### Summary
 
 | negative_ticket_customers | also_have_exceptions | overlap_rate |
 | --- | --- | --- |
 | 6.0 | 3.0 | 0.5 |
 
 
-## Q5b — Negative tickets vs exceptions (customer detail)
+### Customer detail
 
 | customer_key | full_name | negative_ticket_count | categories | has_order_payment_exception |
 | --- | --- | --- | --- | --- |

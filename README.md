@@ -28,11 +28,12 @@ omni-retail-agentic-data-management/
 
 ## Technology stack
 
-- **Python 3.10+** for orchestration and transforms
-- **DuckDB** as the local analytical database
-- **pandas** for file loading and cleaning helpers
-- **SQL** for curated-model documentation and business questions
-- **pytest** for automated checks
+- Python 3.10+
+- DuckDB
+- pandas
+- matplotlib (generated report charts)
+- SQL
+- pytest
 
 ## Pipeline workflow
 
@@ -156,21 +157,22 @@ Each exception row includes:
 Outputs:
 
 - `outputs/exceptions.csv` for row-level investigation
-- `outputs/data_quality_report.md` for rule and severity summary
+- `outputs/data_quality_report.md` for rule summary plus a severity chart
+- `outputs/charts/` for generated PNG images used in the reports
 
 ## Business answers
 
-Answers are produced by `sql/business_questions.sql` against the curated model. They are not hard-coded.
+Answers are produced by `sql/business_questions.sql` against the curated model. They are not hard-coded. Each pipeline run also writes charts under `outputs/charts/` and embeds them in `business_answers.md`.
 
 **Completed revenue definition:** `order_status = completed`, valid customer and product keys, and `quantity > 0`. Defective orders stay in exceptions and question 3.
 
-| Question | Method in short |
-|----------|-----------------|
-| 1. Completed revenue by month | Sum trusted completed order totals by year-month |
-| 2. Top 10 customers | Join trusted orders to `dim_customer`, aggregate, order by value |
-| 3. Exception orders | List orders with invalid IDs, payment problems, or suspicious quantity |
-| 4. Revenue by state | Same trusted filter as Q1, group by shipping state |
-| 5. Negative tickets vs exceptions | Compare customers with negative tickets to customers with order or payment exceptions |
+| Question | Method in short | Visual |
+|----------|-----------------|--------|
+| 1. What is completed revenue by month? | Sum trusted completed order totals by year-month | Bar chart |
+| 2. Who are the top 10 customers by completed order value? | Join trusted orders to `dim_customer`, aggregate, sort | Horizontal bar chart |
+| 3. Which orders have payment/FK/quantity exceptions? | List exception orders | Table |
+| 4. Which states have the highest completed revenue? | Group trusted completed revenue by shipping state | Bar chart |
+| 5. Relationship between negative tickets and exceptions? | Customer overlap rate and detail | Tables |
 
 Current Q1 result under that definition:
 
@@ -180,7 +182,7 @@ Current Q1 result under that definition:
 | 2025-04 | $356.97 | 7 |
 | 2025-05 | $446.20 | 9 |
 
-See `outputs/business_answers.md` for the full generated answers.
+See `outputs/business_answers.md` for the full generated answers, tables, and charts.
 
 ## Installation
 
@@ -207,6 +209,7 @@ This regenerates:
 - `outputs/data_quality_report.md`
 - `outputs/exceptions.csv`
 - `outputs/business_answers.md`
+- `outputs/charts/*.png`
 
 ## Updating with new data
 
