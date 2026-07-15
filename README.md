@@ -208,6 +208,20 @@ This regenerates:
 - `outputs/exceptions.csv`
 - `outputs/business_answers.md`
 
+## Updating with new data
+
+This pipeline does a full refresh on each run. It does not watch folders, stream events, or load only new rows.
+
+To include new data:
+
+1. Add or replace files in `input_data/` (same file names and column layout).
+2. Run `python -m src.pipeline` again.
+3. Review the regenerated reports under `outputs/`.
+
+Example: if new rows are appended to `orders.csv` and `payments.csv`, they are included only after that rerun. Until then, the existing output files stay unchanged.
+
+Each run rebuilds the DuckDB database and report files from whatever is currently in `input_data/`.
+
 ## Running the tests
 
 ```bash
@@ -238,6 +252,7 @@ Cursor was used to plan, generate, and debug the pipeline. Generated code was ru
 - When duplicate IDs appear and the source has no update timestamp, the pipeline keeps the earliest usable row.
 - Country and state standardization focuses on US values in this sample.
 - Overlap between negative tickets and exceptions is visible in this sample, but the dataset is too small for causal claims.
-- No incremental loads or SCD Type 2 history.
+- There is no file watcher, streaming ingest, or auto-detect for new drops. New data is processed only when someone updates `input_data/` and reruns the pipeline.
+- There is no incremental (delta-only) load and no SCD Type 2 history. Each run reprocesses the full current extract.
 
 More tradeoff detail is in `APPROACH.md`.

@@ -36,10 +36,14 @@ Build a small local OmniRetail data-management solution that turns messy operati
 
 ## Known limitations / next improvements
 
-- No incremental loads or SCD Type 2 history.
+- No streaming ingest and no auto-detect of new files. The pipeline only reads what is already in `input_data/` when `python -m src.pipeline` is run.
+- No incremental (delta-only) loads. Each run does a full refresh and rebuilds `outputs/curated.duckdb` and the report files.
+- No SCD Type 2 history for slowly changing customer attributes.
 - State standardization covers US names/codes only.
-- Fuzzy matching is phone-based only; could add email/name similarity scoring.
-- Could add a small Streamlit/HTML dashboard over `exceptions.csv` for business review.
+- Fuzzy matching is phone-based only; email or name similarity could be added later.
+- A small dashboard over `exceptions.csv` could help business review in a later version.
+
+**How new data is expected to land today:** update the extract files in `input_data/`, rerun the pipeline, then review the new outputs. That keeps the take-home simple and fully reproducible.
 
 ## Verification performed
 
