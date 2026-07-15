@@ -54,16 +54,16 @@ flowchart TD
   H --> I
 
   I --> J[Review results]
-  J -->|Fix rule or transform if needed| C
+  J -->|Update cleaning or quality rule, then rerun| C
 ```
 
 How to read this:
 
 1. **Ingest** loads all CSV and JSONL files into DuckDB.
-2. **Clean and transform** splits work into curated tables (trusted) and intermediate tables (kept for audit, including bad keys).
-3. **Data quality checks** use both paths, then produce trusted analytics and an exception report.
-4. **Business answers** use the curated model; question 3 also uses exception findings.
-5. **Review** can feed back into transform or quality rules if a check or total looks wrong, then the pipeline is rerun.
+2. **Clean and transform** builds trusted curated tables, and also keeps a second set of cleaned tables for audit. Those audit tables still include orders or payments with bad customer, product, or order IDs.
+3. **Data quality checks** review both trusted and audit tables, then write analytics for good data and an exception list for problems.
+4. **Business answers** mainly use the trusted curated tables. Question 3 also uses the exception findings.
+5. **Review** means a person checks the reports. If a total or rule looks wrong, they update the cleaning logic or a quality rule and run the pipeline again.
 
 ## What each layer does
 
@@ -90,7 +90,7 @@ Supporting guidance files (`sttm_target_mapping.csv`, `data_quality_rules.csv`, 
 | `fact_customer_issue` | Support tickets with category and sentiment |
 | `dq_exception_report` | Rule failures with severity and suggested action |
 
-Intermediate tables (`int_order`, `int_payment`, `int_customer_issue`) keep cleaned rows that failed foreign-key checks so quality and business question 3 can still inspect them.
+The pipeline also keeps audit tables (`int_order`, `int_payment`, `int_customer_issue`). These hold cleaned rows even when a customer, product, or order ID does not match. That way quality checks and business question 3 can still list the problem records.
 
 ### Customer cleaning
 
@@ -99,9 +99,9 @@ Intermediate tables (`int_order`, `int_payment`, `int_customer_issue`) keep clea
 - Map country values such as US / United States to `USA`
 - Map full state names to two-letter codes
 - Parse mixed signup-date formats
-- Resolve duplicate `customer_id` (example: `C006`) and keep a survivor row
-- Record removed duplicates in the exception report
-- Flag shared phone numbers for review, but do not auto-merge different customer IDs
+- Remove repeated customer IDs (example: two rows for `C006`) and keep one cleaned customer record
+- Write the removed duplicate to the exception report
+- Flag shared phone numbers for review, but do not automatically merge different customer IDs
 
 ### Product cleaning
 
@@ -117,7 +117,7 @@ Intermediate tables (`int_order`, `int_payment`, `int_customer_issue`) keep clea
 - Cast quantity and totals to numeric
 - Calculate `calculated_order_amount = quantity x unit_price`
 - Calculate `order_amount_variance = gross_order_amount - calculated_order_amount`
-- Keep invalid customer or product references out of curated facts, but retain them in intermediate tables and exceptions
+- Keep orders with invalid customer or product IDs out of the trusted order table, but still store them in the audit tables and exception report
 
 ### Payment reconciliation
 
@@ -168,7 +168,7 @@ Answers are produced by `sql/business_questions.sql` against the curated model. 
 |----------|-----------------|
 | 1. Completed revenue by month | Sum trusted completed order totals by year-month |
 | 2. Top 10 customers | Join trusted orders to `dim_customer`, aggregate, order by value |
-| 3. Exception orders | List orders with bad FKs, payment issues, or suspicious quantity |
+| 3. Exception orders | List orders with invalid IDs, payment problems, or suspicious quantity |
 | 4. Revenue by state | Same trusted filter as Q1, group by shipping state |
 | 5. Negative tickets vs exceptions | Compare customers with negative tickets to customers with order or payment exceptions |
 
@@ -214,14 +214,20 @@ This regenerates:
 python -m pytest tests/ -q
 ```
 
-Tests cover row counts after dedupe, referential checks, amount mismatch detection (including `O1021`), and malformed timestamp handling (`T010`).
+Tests check that:
+
+- Duplicate customer and order IDs are removed correctly (row counts match the cleaned data)
+- Missing customer or product IDs are detected
+- Payment amount problems are detected (including `O1021`)
+- Bad ticket timestamps are handled (including `T010`)
 
 ## Design summary
 
-- Exact ID duplicates are resolved in transform. Fuzzy phone overlaps are informational only.
-- Invalid foreign keys are quarantined from curated facts and kept visible in intermediate tables and the exception report.
-- Settled payments are reconciled against completed order totals. Voided or refunded payments are not treated as current settled cash.
-- Business SQL lives in `sql/` so analytics stay reviewable outside Python.
+- When the same customer or order ID appears more than once, the transform keeps one row and logs the rest.
+- Shared phone numbers are only flagged for review. Different customer IDs are not merged automatically.
+- Orders with invalid customer or product IDs are left out of the trusted tables, but kept in audit tables and the exception report.
+- Settled payments are compared to completed order totals. Voided or refunded payments are not treated as current settled cash.
+- Business SQL lives in `sql/` so analytics stay easy to review outside Python.
 
 ## Build process notes
 
@@ -229,7 +235,7 @@ Cursor was used to plan, generate, and debug the pipeline. Generated code was ru
 
 ## Assumptions and limitations
 
-- Duplicate ID survivorship keeps the earliest usable row when the source has no update timestamp or priority field.
+- When duplicate IDs appear and the source has no update timestamp, the pipeline keeps the earliest usable row.
 - Country and state standardization focuses on US values in this sample.
 - Overlap between negative tickets and exceptions is visible in this sample, but the dataset is too small for causal claims.
 - No incremental loads or SCD Type 2 history.
