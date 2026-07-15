@@ -2,7 +2,7 @@
 
 ## Goal
 
-Build a small local OmniRetail data-management solution that turns messy operational extracts into curated, queryable tables, surfaces exceptions with remediation guidance, and answers the five business questions from the cleaned model.
+Build a small local OmniRetail data-management solution that turns operational extracts containing known quality issues into curated, queryable tables, surfaces exceptions with remediation guidance, and answers the five business questions from the cleaned model.
 
 ## Architecture
 

@@ -308,6 +308,10 @@ Cursor (Auto agent router) was used to plan, generate, and debug the pipeline. C
 
 ## Conclusion
 
-The pipeline gives business users generated revenue, customer, state, and support-overlap views while giving data owners a separate work queue in `outputs/exceptions.csv`. The submitted run has a zero revenue-reconciliation difference, so the reported completed revenue is fully explained by the curated and quarantined order populations. Before using the data for operational decisions, owners should correct the high-severity reference, quantity, and payment issues, rerun the pipeline, and confirm that exception counts decrease without creating a reconciliation difference.
+This project provides OmniRetail with a repeatable local pipeline for customer, product, order, payment, and support-ticket data. It creates the curated tables required for customer-360 analysis and checks whether orders and payments agree.
+
+For the supplied extract, 25 completed orders contribute `$1,243.87` to reported revenue. The reports identify the highest-revenue month, customers, and shipping states, as well as five orders with the reference, payment, or quantity problems requested in Q3. The data-quality report contains 18 exception rows with the affected record, severity, and recommended action.
+
+The business answers use the curated tables, while `outputs/exceptions.csv` keeps the records that require correction. When OmniRetail updates the source files, rerunning the pipeline rebuilds the database and reports using the same documented rules.
 
 More tradeoff detail is in `APPROACH.md`.

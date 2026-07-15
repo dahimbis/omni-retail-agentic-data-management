@@ -216,7 +216,7 @@ def _section_with_table_then_chart(
     if chart_path:
         parts.extend([f"![{chart_alt}]({chart_path})", ""])
     if takeaway:
-        parts.extend([f"**Key takeaway:** {takeaway}", ""])
+        parts.extend([takeaway, ""])
     return parts
 
 
@@ -491,47 +491,64 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
     q1_takeaway = q2_takeaway = q3_takeaway = q4_takeaway = q5_takeaway = None
     executive_summary: list[str] = ["## Executive summary", ""]
     total_revenue = None
+    total_completed_orders = None
+    best_month_name = None
+    best_month_revenue = None
+    top_customer_name = None
+    top_customer_value = None
+    exception_order_count = None
+    top_state_name = None
+    top_state_revenue = None
+    negative_ticket_customers = None
+    overlapping_customers = None
 
     if len(bq_frames) > 0 and not bq_frames[0].empty:
         q1 = bq_frames[0]
         total_revenue = float(q1["completed_revenue"].sum())
+        total_completed_orders = int(q1["completed_order_count"].sum())
         best_month = q1.loc[q1["completed_revenue"].astype(float).idxmax()]
+        best_month_name = str(best_month["month"])
+        best_month_revenue = float(best_month["completed_revenue"])
         q1_takeaway = (
             f"Revenue-eligible completed orders total ${total_revenue:,.2f}. "
-            f"{best_month['month']} is the highest month at "
-            f"${float(best_month['completed_revenue']):,.2f}."
+            f"{best_month_name} is the highest month at ${best_month_revenue:,.2f}."
         )
         executive_summary.append(f"- **Revenue:** {q1_takeaway}")
 
     if len(bq_frames) > 1 and not bq_frames[1].empty:
         top_customer = bq_frames[1].iloc[0]
+        top_customer_name = str(top_customer["full_name"])
+        top_customer_value = float(top_customer["completed_order_value"])
         q2_takeaway = (
-            f"{top_customer['full_name']} ({top_customer['customer_key']}) has the "
-            f"highest completed order value at "
-            f"${float(top_customer['completed_order_value']):,.2f}."
+            f"{top_customer_name} ({top_customer['customer_key']}) has the "
+            f"highest completed order value at ${top_customer_value:,.2f}."
         )
         executive_summary.append(f"- **Top customer:** {q2_takeaway}")
 
     if len(bq_frames) > 2:
+        exception_order_count = len(bq_frames[2])
         q3_takeaway = (
-            f"{len(bq_frames[2])} orders require review across the five exception "
+            f"{exception_order_count} orders require review across the five exception "
             "categories requested in the business question."
         )
         executive_summary.append(f"- **Order review:** {q3_takeaway}")
 
     if len(bq_frames) > 3 and not bq_frames[3].empty:
         top_state = bq_frames[3].iloc[0]
+        top_state_name = str(top_state["state"])
+        top_state_revenue = float(top_state["completed_revenue"])
         q4_takeaway = (
-            f"{top_state['state']} is the leading shipping state with "
-            f"${float(top_state['completed_revenue']):,.2f} in completed revenue."
+            f"{top_state_name} is the leading shipping state with "
+            f"${top_state_revenue:,.2f} in completed revenue."
         )
         executive_summary.append(f"- **Geography:** {q4_takeaway}")
 
     if len(bq_frames) > 4 and not bq_frames[4].empty:
         q5 = bq_frames[4].iloc[0]
+        overlapping_customers = int(q5["also_have_exceptions"])
+        negative_ticket_customers = int(q5["negative_ticket_customers"])
         q5_takeaway = (
-            f"{int(q5['also_have_exceptions'])} of "
-            f"{int(q5['negative_ticket_customers'])} customers with negative tickets "
+            f"{overlapping_customers} of {negative_ticket_customers} customers with negative tickets "
             f"also have a Q3 order/payment exception "
             f"({float(q5['overlap_rate']) * 100:.1f}%). "
             "This is a descriptive overlap, not evidence that one issue caused the other."
@@ -582,7 +599,7 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
             "",
             _md_table(bq_frames[2]) if len(bq_frames) > 2 else "_Query missing._\n",
             "",
-            f"**Key takeaway:** {q3_takeaway}" if q3_takeaway else "",
+            q3_takeaway if q3_takeaway else "",
             "",
         ]
     )
@@ -613,21 +630,43 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
             "",
             _md_table(bq_frames[5]) if len(bq_frames) > 5 else "_Query missing._\n",
             "",
-            f"**Key takeaway:** {q5_takeaway}" if q5_takeaway else "",
+            q5_takeaway if q5_takeaway else "",
             "",
         ]
     )
-    if total_revenue is not None:
+    if all(
+        value is not None
+        for value in (
+            total_revenue,
+            total_completed_orders,
+            best_month_name,
+            best_month_revenue,
+            top_customer_name,
+            top_customer_value,
+            exception_order_count,
+            top_state_name,
+            top_state_revenue,
+            negative_ticket_customers,
+            overlapping_customers,
+        )
+    ):
         sections.extend(
             [
                 "## Conclusion",
                 "",
-                f"The curated model reconciles ${total_revenue:,.2f} of revenue-eligible "
-                "completed orders for the supplied data. Business users can use the monthly, "
-                "customer, and state views for the current reporting period, while the data "
-                "team works through the order/payment exceptions listed in Q3 and "
-                "`exceptions.csv`. The support-ticket overlap should guide investigation, "
-                "not be interpreted as a causal relationship.",
+                f"The supplied data contains {total_completed_orders} completed orders used "
+                f"in revenue reporting, totaling ${total_revenue:,.2f}. "
+                f"{best_month_name} has the highest monthly revenue at "
+                f"${best_month_revenue:,.2f}; {top_customer_name} is the highest-value "
+                f"customer at ${top_customer_value:,.2f}; and {top_state_name} is the "
+                f"highest-revenue shipping state at ${top_state_revenue:,.2f}.",
+                "",
+                f"Q3 identifies {exception_order_count} orders with reference, payment, or "
+                "quantity problems. Q5 shows that "
+                f"{overlapping_customers} of {negative_ticket_customers} customers with "
+                "negative tickets also have one of those order or payment problems. "
+                "This overlap identifies customers for follow-up but does not establish "
+                "that the data problem caused the support ticket.",
                 "",
             ]
         )

@@ -23,7 +23,7 @@ Revenue-eligible completed orders: valid customer and product IDs, a parsed orde
 
 ![Q1 completed revenue by month](charts/q1_revenue_by_month.png)
 
-**Key takeaway:** Revenue-eligible completed orders total $1,243.87. 2025-05 is the highest month at $446.20.
+Revenue-eligible completed orders total $1,243.87. 2025-05 is the highest month at $446.20.
 
 ## Q2. Who are the top 10 customers by completed order value?
 
@@ -45,7 +45,7 @@ Customers are ranked by revenue-eligible completed order value. Ties use custome
 
 ![Q2 top customers](charts/q2_top_customers.png)
 
-**Key takeaway:** Lucas Taylor (C010) has the highest completed order value at $194.98.
+Lucas Taylor (C010) has the highest completed order value at $194.98.
 
 ## Q3. Which orders have payment mismatches, missing payments, invalid customer references, invalid product references, or suspicious quantities?
 
@@ -60,7 +60,7 @@ This answer is intentionally limited to the five exception categories named in t
 | O1030 | C018 | P010 | completed | -1 | -21.00 | suspicious_quantity |
 
 
-**Key takeaway:** 5 orders require review across the five exception categories requested in the business question.
+5 orders require review across the five exception categories requested in the business question.
 
 ## Q4. Which states have the highest completed revenue?
 
@@ -79,7 +79,7 @@ For this answer, state means the order shipping state, not the customer's home s
 
 ![Q4 completed revenue by state](charts/q4_revenue_by_state.png)
 
-**Key takeaway:** MA is the leading shipping state with $278.23 in completed revenue.
+MA is the leading shipping state with $278.23 in completed revenue.
 
 ## Q5. Is there any visible relationship between negative support tickets and order or payment exceptions?
 
@@ -104,8 +104,10 @@ The exception-customer group uses the same five categories as Q3 so the comparis
 | C017 | Harper Lee | 1 | delivery | False |
 
 
-**Key takeaway:** 3 of 6 customers with negative tickets also have a Q3 order/payment exception (50.0%). This is a descriptive overlap, not evidence that one issue caused the other.
+3 of 6 customers with negative tickets also have a Q3 order/payment exception (50.0%). This is a descriptive overlap, not evidence that one issue caused the other.
 
 ## Conclusion
 
-The curated model reconciles $1,243.87 of revenue-eligible completed orders for the supplied data. Business users can use the monthly, customer, and state views for the current reporting period, while the data team works through the order/payment exceptions listed in Q3 and `exceptions.csv`. The support-ticket overlap should guide investigation, not be interpreted as a causal relationship.
+The supplied data contains 25 completed orders used in revenue reporting, totaling $1,243.87. 2025-05 has the highest monthly revenue at $446.20; Lucas Taylor is the highest-value customer at $194.98; and MA is the highest-revenue shipping state at $278.23.
+
+Q3 identifies 5 orders with reference, payment, or quantity problems. Q5 shows that 3 of 6 customers with negative tickets also have one of those order or payment problems. This overlap identifies customers for follow-up but does not establish that the data problem caused the support ticket.
