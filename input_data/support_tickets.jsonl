@@ -1,0 +1,10 @@
+{"ticket_id": "T001", "customer_id": "C001", "created_ts": "2025-03-02T11:00:00", "channel": "email", "category": "delivery", "sentiment": "negative", "description": "Package was late by two days."}
+{"ticket_id": "T002", "customer_id": "C004", "created_ts": "2025-03-06T09:15:00", "channel": "chat", "category": "product_quality", "sentiment": "neutral", "description": "Mouse scroll wheel feels noisy."}
+{"ticket_id": "T003", "customer_id": "C014", "created_ts": "2025-04-10T08:20:00", "channel": "phone", "category": "return", "sentiment": "negative", "description": "Speaker was returned after sound distortion."}
+{"ticket_id": "T004", "customer_id": "C006", "created_ts": "2025-04-16T16:40:00", "channel": "email", "category": "billing", "sentiment": "negative", "description": "Customer sees duplicate customer profile and loyalty tier issue."}
+{"ticket_id": "T005", "customer_id": "C999", "created_ts": "2025-04-24T12:00:00", "channel": "chat", "category": "account", "sentiment": "negative", "description": "Unable to find account linked to order."}
+{"ticket_id": "T006", "customer_id": "C003", "created_ts": "2025-05-04T09:30:00", "channel": "email", "category": "delivery", "sentiment": "positive", "description": "Asked for tracking link; resolved quickly."}
+{"ticket_id": "T007", "customer_id": "C002", "created_ts": "2025-05-03T14:30:00", "channel": "chat", "category": "billing", "sentiment": "negative", "description": "Customer believes payment was overcharged."}
+{"ticket_id": "T008", "customer_id": "C010", "created_ts": "2025-05-11T10:15:00", "channel": "phone", "category": "product_quality", "sentiment": "neutral", "description": "Bluetooth pairing instructions requested."}
+{"ticket_id": "T009", "customer_id": "C018", "created_ts": "2025-05-27T12:00:00", "channel": "email", "category": "billing", "sentiment": "negative", "description": "Negative order quantity appears in confirmation email."}
+{"ticket_id": "T010", "customer_id": "C017", "created_ts": "bad_timestamp", "channel": "email", "category": "delivery", "sentiment": "negative", "description": "Timestamp field is malformed in source system."}

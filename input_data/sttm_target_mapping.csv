@@ -1,0 +1,23 @@
+target_table,target_column,source_file,source_column,transformation_rule
+dim_customer,customer_key,customers.csv,customer_id,Use customer_id after duplicate-resolution rule.
+dim_customer,full_name,customers.csv,"first_name,last_name",Concatenate first and last name with space.
+dim_customer,email,customers.csv,email,Lowercase; flag missing as DQ issue; do not fabricate.
+dim_customer,standard_country,customers.csv,country,"Map USA, US, United States to USA."
+dim_customer,standard_state,customers.csv,state,Map full state names to two-letter code where possible.
+dim_customer,loyalty_tier,customers.csv,loyalty_tier,Preserve source tier after resolving duplicate customer rows.
+dim_product,product_key,products.csv,product_id,Preserve product_id.
+dim_product,product_name,products.csv,product_name,Preserve product name.
+dim_product,category,products.csv,category,Preserve category.
+dim_product,unit_price,products.csv,unit_price,Cast to decimal.
+fact_order,order_key,orders.csv,order_id,Preserve order_id after dedup.
+fact_order,customer_key,orders.csv,customer_id,Foreign key to dim_customer; invalid IDs go to exception report.
+fact_order,product_key,orders.csv,product_id,Foreign key to dim_product; invalid IDs go to exception report.
+fact_order,order_date,orders.csv,order_ts,Parse mixed timestamp formats; normalize to date.
+fact_order,quantity,orders.csv,quantity,Cast to integer; quantity must be greater than zero for completed orders.
+fact_order,gross_order_amount,orders.csv,order_total,Cast to decimal and compare to quantity * unit_price.
+fact_payment,payment_key,payments.csv,payment_id,Preserve payment_id.
+fact_payment,order_key,payments.csv,order_id,Foreign key to fact_order; orphan payments go to exception report.
+fact_payment,payment_amount,payments.csv,amount,Cast to decimal; compare settled amount to completed order total.
+fact_customer_issue,customer_key,support_tickets.jsonl,customer_id,Foreign key to dim_customer where possible.
+fact_customer_issue,issue_category,support_tickets.jsonl,category,Preserve source category.
+fact_customer_issue,sentiment,support_tickets.jsonl,sentiment,Preserve source sentiment.

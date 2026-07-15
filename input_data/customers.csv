@@ -1,0 +1,21 @@
+customer_id,first_name,last_name,email,phone,country,state,signup_date,loyalty_tier
+C001,Ava,Patel,ava.patel@example.com,312-555-0101,USA,IL,2025-01-04,Gold
+C002,Liam,Nguyen,liam.nguyen@example.com,773-555-0188,US,Illinois,01/12/2025,Silver
+C003,Noah,Williams,noah.williams@example.com,,United States,CA,2025/01/14,Bronze
+C004,Emma,Brown,,415-555-0199,USA,CA,2025-02-01,Gold
+C005,Olivia,Garcia,olivia.garcia@example.com,212-555-0144,USA,NY,2025-02-10,Silver
+C006,Mason,Davis,mason.davis@example.com,646-555-0170,US,New York,2025-02-18,Bronze
+C007,Sophia,Miller,sophia.miller@example.com,469-555-0123,USA,TX,2025-03-02,Gold
+C008,Ethan,Wilson,ethan.wilson@example.com,214-555-0166,USA,Texas,03-06-2025,Silver
+C009,Isabella,Moore,isabella.moore@example.com,617-555-0155,USA,MA,2025-03-20,Bronze
+C010,Lucas,Taylor,lucas.taylor@example.com,857-555-0133,USA,MA,2025-04-05,Gold
+C011,Mia,Anderson,mia.anderson@example.com,312-555-0198,United States,IL,2025-04-15,Silver
+C012,James,Thomas,james.thomas@example.com,206-555-0160,USA,WA,2025-04-20,Bronze
+C013,Charlotte,Jackson,charlotte.jackson@example.com,425-555-0112,USA,WA,2025-05-03,Silver
+C014,Benjamin,White,ben.white@example.com,305-555-0129,USA,FL,2025-05-11,Gold
+C015,Amelia,Harris,amelia.harris@example.com,786-555-0141,USA,Florida,2025-05-13,Bronze
+C016,Henry,Martin,henry.martin@example.com,312-555-0101,USA,IL,2025-06-01,Silver
+C017,Harper,Lee,harper.lee@example.com,,USA,CA,2025-06-08,Bronze
+C018,Daniel,Clark,daniel.clark@example.com,718-555-0108,USA,NY,2025-06-15,Gold
+C006,Mason,Davis,mason.d@example.com,646-555-0171,USA,NY,2025-02-18,Bronze
+C019,Ava,Patel,ava.patel.duplicate@example.com,312-555-0101,USA,IL,2025-06-20,Gold

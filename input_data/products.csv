@@ -1,0 +1,13 @@
+product_id,product_name,category,unit_price,active_flag
+P001,Eco Water Bottle,Home,18.00,Y
+P002,Wireless Mouse,Electronics,24.99,Y
+P003,USB-C Hub,Electronics,39.99,Y
+P004,Yoga Mat,Fitness,29.50,Y
+P005,Coffee Beans 1lb,Grocery,14.75,Y
+P006,Desk Lamp,Home,42.00,Y
+P007,Notebook Pack,Office,8.25,Y
+P008,Running Socks,Fitness,11.00,Y
+P009,Bluetooth Speaker,Electronics,59.99,Y
+P010,Travel Mug,Home,21.00,Y
+P011,Protein Bar Box,Grocery,19.99,N
+P012,Ergonomic Keyboard,Electronics,75.00,Y

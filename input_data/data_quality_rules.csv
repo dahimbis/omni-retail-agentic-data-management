@@ -1,0 +1,13 @@
+rule_id,dataset,rule_description,severity
+DQ001,customers,customer_id must be unique after duplicate resolution,High
+DQ002,customers,email should be present and syntactically valid when available,Medium
+DQ003,customers,country and state must be standardized,Medium
+DQ004,orders,order_id must be unique,High
+DQ005,orders,customer_id must exist in customers,High
+DQ006,orders,product_id must exist in products,High
+DQ007,orders,completed orders must have positive quantity,High
+DQ008,orders,order_total should equal quantity times product unit_price,High
+DQ009,payments,payment order_id must exist in orders,High
+DQ010,payments,settled payment amount should equal completed order total,High
+DQ011,support_tickets,created_ts must parse to a valid timestamp,Medium
+DQ012,support_tickets,customer_id should exist in customers,Medium
