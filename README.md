@@ -55,32 +55,37 @@ omni-retail-agentic-data-management/
 
 ```mermaid
 flowchart TD
-  A[Raw files in input_data] --> B[Ingest to DuckDB]
+  A[Operational and reference files in input_data] --> B[Ingest to DuckDB]
+  B --> R[Reference tables]
   B --> C[Clean and transform]
 
   C --> D[Curated tables]
-  C --> E[Intermediate tables]
+  C --> E[Intermediate audit tables]
 
-  D --> F[Data quality checks]
+  D --> F[Data quality and rule coverage checks]
   E --> F
+  R --> F
 
-  D --> G[Revenue-eligible analytics]
-  F --> H[Exception report]
+  F --> H[DQ results and order exception view]
+  D --> G[Business question SQL]
+  H --> G
 
-  G --> I[Business answers]
-  H --> I
+  F --> Q[Quality report and exceptions CSV]
+  G --> I[Business answers and charts]
 
-  I --> J[Review results]
-  J -->|Update cleaning or quality rule, then rerun| C
+  Q --> J[Review generated outputs]
+  I --> J
+  J -->|Correct source files or rules, then rerun the full pipeline| B
 ```
 
 How to read this:
 
 1. **Ingest** loads the five operational CSV/JSONL datasets and two reference CSVs into DuckDB.
-2. **Clean and transform** builds curated tables with valid foreign keys, and also keeps a second set of cleaned tables for audit. Those audit tables still include orders or payments with bad customer, product, or order IDs.
-3. **Data quality checks** review both curated and audit tables and write an exception list. Revenue-eligible analytics read from the curated tables.
-4. **Business answers** mainly use the curated tables. Question 3 uses the centralized `vw_order_exceptions` audit view.
-5. **Review** means a person checks the reports. If a total or rule looks wrong, they update the cleaning logic or a quality rule and run the pipeline again.
+2. **Clean and transform** creates curated tables with valid foreign keys and intermediate audit tables that preserve records with invalid references.
+3. **Data quality checks** examine both sets of tables. They produce DQ results, validate coverage of the supplied rules, and create the order-exception view.
+4. **Business question SQL** uses curated tables for revenue analysis and the order-exception view for Q3 and Q5.
+5. **Reporting** generates the quality report, exceptions CSV, business answers, and charts.
+6. **Review and rerun** means correcting source data or pipeline rules when necessary, then running the entire pipeline again from ingestion.
 
 ## What each layer does
 
