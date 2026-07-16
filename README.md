@@ -15,7 +15,7 @@ The pipeline processes the supplied OmniRetail datasets and produces:
 
 ## Snapshot
 
-`Completed` describes the order status recorded in the source data; it does not mean the order passed every quality check. The snapshot places each completed order in one of two groups: no identified order or payment issues, or at least one identified issue. In the current data, 21 completed orders have no identified issues and 7 have issues. The seven affected orders include the five listed in Q3, O1015 for an inactive product, and O1018 because the source contained a duplicate row. See `outputs/order_health_snapshot.md` for the table. The chart is regenerated whenever the pipeline runs.
+`Completed` describes the order status recorded in the source data; it does not mean the order passed every quality check. The snapshot places each completed order in one of two groups: no identified order or payment issues, or at least one identified issue. In the current data, 21 completed orders have no identified issues and 7 have issues. The seven affected orders include the five listed in Q3, O1015 for an inactive product, and O1018 because the source contained a duplicate row. See `outputs/order_health_snapshot.md` for the table. The chart is regenerated when the pipeline runs.
 
 ![Order health snapshot](outputs/charts/readme_order_health.png)
 
