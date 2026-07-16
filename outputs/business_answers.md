@@ -1,8 +1,8 @@
 # Business Question Answers
 
-Answers are generated with SQL from `sql/business_questions.sql` against the curated model. Values are not hard-coded. Each section shows the table first, then the chart. Charts refresh when the pipeline runs.
+The answers are generated with SQL from `sql/business_questions.sql` against the curated model, so the values update with the source data. Each section presents the results in a table and includes a chart where it improves readability.
 
-`input_data/expected_business_questions.md` instructs the candidate to use the curated model. O1019 and O1020 therefore remain in the audit and exception outputs but are excluded from revenue because their customer or product references are invalid.
+Revenue reporting uses orders that meet the curated model's validation rules. O1019 and O1020 are retained in the audit and exception outputs but excluded from revenue because their customer or product references are invalid.
 
 ## Executive summary
 
@@ -10,7 +10,7 @@ Answers are generated with SQL from `sql/business_questions.sql` against the cur
 - **Top customer:** Lucas Taylor (C010) has the highest completed order value at $194.98.
 - **Order review:** 5 orders require review across the five exception categories requested in the business question.
 - **Geography:** MA is the leading shipping state with $278.23 in completed revenue.
-- **Customer support:** Customers with negative support tickets have a 50.0% order/payment exception rate (3 of 6), compared with 7.7% (1 of 13) among customers without negative tickets. This suggests a visible association in the supplied data, but the sample is small and does not establish causation.
+- **Customer support:** Customers with negative support tickets had a 50.0% order or payment exception rate, compared with 7.7% among customers without negative tickets. This suggests a visible association in the supplied data. However, the sample is small and does not prove that the exceptions caused the negative tickets.
 
 ## Q1. What is completed revenue by month?
 
@@ -107,10 +107,10 @@ The exception-customer group uses the same five categories as Q3 so the comparis
 | C017 | Harper Lee | 1 | delivery | False |
 
 
-Customers with negative support tickets have a 50.0% order/payment exception rate (3 of 6), compared with 7.7% (1 of 13) among customers without negative tickets. This suggests a visible association in the supplied data, but the sample is small and does not establish causation.
+Customers with negative support tickets had a 50.0% order or payment exception rate, compared with 7.7% among customers without negative tickets. This suggests a visible association in the supplied data. However, the sample is small and does not prove that the exceptions caused the negative tickets.
 
 ## Conclusion
 
 The supplied data contains 25 completed orders used in revenue reporting, totaling $1,243.87. 2025-05 has the highest monthly revenue at $446.20; Lucas Taylor is the highest-value customer at $194.98; and MA is the highest-revenue shipping state at $278.23.
 
-Q3 identifies 5 orders with reference, payment, or quantity problems. Q5 shows a 50.0% exception rate for customers with negative tickets, compared with 7.7% for customers without negative tickets. This is a visible association in the supplied data, not proof that one issue caused the other.
+Q3 identifies 5 orders with reference, payment, or quantity problems. Customers with negative support tickets had a 50.0% order or payment exception rate, compared with 7.7% among customers without negative tickets. This suggests a visible association in the supplied data. However, the sample is small and does not prove that the exceptions caused the negative tickets.

@@ -562,13 +562,12 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
         no_negative_ticket_customers = int(no_negative_group["customers"])
         no_negative_ticket_exception_rate = float(no_negative_group["exception_rate"])
         q5_takeaway = (
-            f"Customers with negative support tickets have a "
-            f"{negative_ticket_exception_rate * 100:.1f}% order/payment exception rate "
-            f"({overlapping_customers} of {negative_ticket_customers}), compared with "
-            f"{no_negative_ticket_exception_rate * 100:.1f}% "
-            f"({no_negative_ticket_exceptions} of {no_negative_ticket_customers}) among "
+            "Customers with negative support tickets had a "
+            f"{negative_ticket_exception_rate * 100:.1f}% order or payment exception "
+            f"rate, compared with {no_negative_ticket_exception_rate * 100:.1f}% among "
             "customers without negative tickets. This suggests a visible association in "
-            "the supplied data, but the sample is small and does not establish causation."
+            "the supplied data. However, the sample is small and does not prove that the "
+            "exceptions caused the negative tickets."
         )
         executive_summary.append(f"- **Customer support:** {q5_takeaway}")
     executive_summary.append("")
@@ -576,14 +575,14 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
     sections = [
         "# Business Question Answers",
         "",
-        "Answers are generated with SQL from `sql/business_questions.sql` "
-        "against the curated model. Values are not hard-coded. Each section shows "
-        "the table first, then the chart. Charts refresh when the pipeline runs.",
+        "The answers are generated with SQL from `sql/business_questions.sql` "
+        "against the curated model, so the values update with the source data. "
+        "Each section presents the results in a table and includes a chart where "
+        "it improves readability.",
         "",
-        "`input_data/expected_business_questions.md` instructs the candidate to use "
-        "the curated model. O1019 and O1020 therefore remain in the audit and "
-        "exception outputs but are excluded from revenue because their customer or "
-        "product references are invalid.",
+        "Revenue reporting uses orders that meet the curated model's validation rules. "
+        "O1019 and O1020 are retained in the audit and exception outputs but excluded "
+        "from revenue because their customer or product references are invalid.",
         "",
     ]
     sections.extend(executive_summary)
@@ -688,12 +687,7 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
                 f"highest-revenue shipping state at ${top_state_revenue:,.2f}.",
                 "",
                 f"Q3 identifies {exception_order_count} orders with reference, payment, or "
-                f"quantity problems. Q5 shows a "
-                f"{negative_ticket_exception_rate * 100:.1f}% exception rate for customers "
-                f"with negative tickets, compared with "
-                f"{no_negative_ticket_exception_rate * 100:.1f}% for customers without "
-                "negative tickets. This is a visible association in the supplied data, "
-                "not proof that one issue caused the other.",
+                f"quantity problems. {q5_takeaway}",
                 "",
             ]
         )

@@ -422,7 +422,13 @@ def test_curated_schema_and_generated_reports(pipeline_con, tmp_path, monkeypatc
     assert "Q4. Which states have the highest completed revenue?" in answers
     assert "| Negative support ticket | 6 | 3 | 0.500 |" in answers
     assert "| No negative support ticket | 13 | 1 | 0.077 |" in answers
-    assert "This suggests a visible association in the supplied data" in answers
+    assert (
+        "Customers with negative support tickets had a 50.0% order or payment "
+        "exception rate, compared with 7.7% among customers without negative "
+        "tickets. This suggests a visible association in the supplied data. "
+        "However, the sample is small and does not prove that the exceptions "
+        "caused the negative tickets."
+    ) in answers
     reconciliation = (generated_dir / "reconciliation_report.md").read_text(
         encoding="utf-8"
     )
