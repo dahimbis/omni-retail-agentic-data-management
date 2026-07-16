@@ -48,21 +48,19 @@ I used prompts such as the following to direct the work from initial analysis th
 
 10. **Final technical improvements**
 
-   > Verify the remaining review findings before making changes. Strengthen Q5 with a comparison group, load the STTM and DQ reference CSVs into DuckDB, validate supplied-rule coverage, use `DECIMAL(18,2)` for financial columns, and extend the regression tests.
+    > Verify the remaining review findings before making changes. Strengthen Q5 with a comparison group, load the STTM and DQ reference CSVs into DuckDB, validate supplied-rule coverage, use `DECIMAL(18,2)` for financial columns, and extend the regression tests.
 
 11. **Report clarity review**
 
-   > Review the generated reports as documents that someone will read directly. Remove wording that refers to “the candidate” or assumes access to the exercise instructions. Replace unclear source-data, refresh, and order-quality terminology with direct explanations.
+    > Review the generated reports as documents that someone will read directly. Remove wording that refers to “the candidate” or assumes access to the exercise instructions. Replace unclear source-data, refresh, and order-quality terminology with direct explanations.
 
 12. **Workflow verification**
 
-   > Compare the README workflow diagram with the actual pipeline code. Keep the Mermaid diagram simple, but ensure it correctly shows ingestion, transformation, curated and audit tables, quality checks, business SQL, generated outputs, review, and a full rerun from ingestion.
+    > Compare the README workflow diagram with the actual pipeline code. Keep the Mermaid diagram simple, but ensure it correctly shows ingestion, transformation, curated and audit tables, quality checks, business SQL, generated outputs, review, and a full rerun from ingestion.
 
 13. **Duplicate-rule interpretation**
 
-   > Investigate why DQ004 reports PASS while O1018 appears as a duplicate-order transformation exception. Confirm whether this is a defect or an expected result of checking uniqueness after duplicate resolution, then document the explanation without redesigning correct code.
-
-These instructions demonstrate problem decomposition, constrained code generation, iterative review, debugging, and independent verification rather than acceptance of the first generated output.
+    > Investigate why DQ004 reports PASS while O1018 appears as a duplicate-order transformation exception. Confirm whether this is a defect or an expected result of checking uniqueness after duplicate resolution, then document the explanation without redesigning correct code.
 
 ## How I steered the tools
 
