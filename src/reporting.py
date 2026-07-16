@@ -471,6 +471,9 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
             "",
             "## Rule results",
             "",
+            "DQ001 and DQ004 validate uniqueness after duplicate resolution. "
+            "Source duplicates remain visible as transformation exceptions.",
+            "",
             _md_table(dq),
             "## Recommended actions",
             "",

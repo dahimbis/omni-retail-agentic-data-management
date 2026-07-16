@@ -429,6 +429,13 @@ def test_curated_schema_and_generated_reports(pipeline_con, tmp_path, monkeypatc
         "However, the sample is small and does not prove that the exceptions "
         "caused the negative tickets."
     ) in answers
+    quality_report = (generated_dir / "data_quality_report.md").read_text(
+        encoding="utf-8"
+    )
+    assert (
+        "DQ001 and DQ004 validate uniqueness after duplicate resolution. "
+        "Source duplicates remain visible as transformation exceptions."
+    ) in quality_report
     reconciliation = (generated_dir / "reconciliation_report.md").read_text(
         encoding="utf-8"
     )

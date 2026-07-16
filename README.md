@@ -175,6 +175,8 @@ Known examples:
 
 Checks cover duplicates, missing or invalid email, invalid references, timestamp failures, negative quantities, inactive products, order arithmetic mismatches, payment mismatches, missing payments, and payments tied to quarantined orders. DQ001 to DQ012 come from the provided reference file; DQ013 to DQ016 are documented extensions for the brief and reconciliation workflow. For DQ002, the STTM instruction to flag missing email clarifies the shorter rule wording "when available."
 
+DQ001 and DQ004 validate uniqueness after duplicate resolution. Source duplicates remain visible as transformation exceptions.
+
 Each exception row includes:
 
 - Rule ID

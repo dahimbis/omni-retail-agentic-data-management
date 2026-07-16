@@ -45,6 +45,8 @@ The exception report also retains non-duplicated transform resolution events and
 
 ## Rule results
 
+DQ001 and DQ004 validate uniqueness after duplicate resolution. Source duplicates remain visible as transformation exceptions.
+
 | rule_id | description | severity | status | fail_count |
 | --- | --- | --- | --- | --- |
 | DQ001 | customer_id must be unique after duplicate resolution | High | PASS | 0 |
