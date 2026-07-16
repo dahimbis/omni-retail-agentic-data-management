@@ -46,6 +46,22 @@ I used prompts such as the following to direct the work from initial analysis th
 
    > Review the complete solution against the exercise rubric from an FDE perspective. Check whether the implementation is explainable, reproducible, and auditable. Compare independently generated results, trace any differences to business definitions, and correct issues without changing validated business results.
 
+10. **Final technical improvements**
+
+   > Verify the remaining review findings before making changes. Strengthen Q5 with a comparison group, load the STTM and DQ reference CSVs into DuckDB, validate supplied-rule coverage, use `DECIMAL(18,2)` for financial columns, and extend the regression tests.
+
+11. **Report clarity review**
+
+   > Review the generated reports as documents that someone will read directly. Remove wording that refers to “the candidate” or assumes access to the exercise instructions. Replace unclear source-data, refresh, and order-quality terminology with direct explanations.
+
+12. **Workflow verification**
+
+   > Compare the README workflow diagram with the actual pipeline code. Keep the Mermaid diagram simple, but ensure it correctly shows ingestion, transformation, curated and audit tables, quality checks, business SQL, generated outputs, review, and a full rerun from ingestion.
+
+13. **Duplicate-rule interpretation**
+
+   > Investigate why DQ004 reports PASS while O1018 appears as a duplicate-order transformation exception. Confirm whether this is a defect or an expected result of checking uniqueness after duplicate resolution, then document the explanation without redesigning correct code.
+
 These instructions demonstrate problem decomposition, constrained code generation, iterative review, debugging, and independent verification rather than acceptance of the first generated output.
 
 ## How I steered the tools
@@ -84,15 +100,17 @@ These instructions demonstrate problem decomposition, constrained code generatio
 - README character encoding was damaged during punctuation cleanup. I rewrote the affected content with UTF-8-safe text.
 - GitHub push attempts exposed repository and shared-machine credential problems. I kept those environment issues separate from pipeline correctness and verified the project locally before submission.
 - An expanded regression test initially expected the wrong invalid-ticket key. I checked the raw JSONL, corrected the expected key from T012 to T005, and reran the suite.
+- Q5 initially measured only customers with negative tickets. I checked the full 19-customer population and added the 13-customer comparison group instead of drawing a relationship conclusion from the 6-customer group alone.
+- DQ004 showed PASS even though O1018 was listed as a duplicate exception. I traced the sequence and confirmed that transformation records the source duplicate before DQ004 validates the deduplicated order table.
 
 ## Manual judgment and verification
 
-- I reconciled 20 raw customers to 19 curated customers after resolving the repeated C006 ID.
-- I reconciled 31 raw order rows to 30 distinct order IDs and 28 curated `fact_order` rows after removing one duplicate O1018 row while retaining its canonical order, then quarantining O1019/O1020.
-- I spot-checked O1021: source total `$50.00`, calculated amount `$44.00`, and settled payment `$44.00`, producing separate order-arithmetic and payment-mismatch findings.
-- I verified O1024 has no settled payment, PMT029 references nonexistent O9999, and T010 has an invalid timestamp.
+- Reconciled 20 raw customers to 19 curated customers after resolving the repeated C006 ID.
+- Reconciled 31 raw order rows to 30 distinct order IDs and 28 curated `fact_order` rows after removing one duplicate O1018 row while retaining its canonical order, then quarantining O1019/O1020.
+- Spot-checked O1021: source total `$50.00`, calculated amount `$44.00`, and settled payment `$44.00`, producing separate order-arithmetic and payment-mismatch findings.
+- Verified O1024 has no settled payment, PMT029 references nonexistent O9999, and T010 has an invalid timestamp.
 - I confirmed the `$37.98` difference between April's curated revenue (`$356.97`) and the alternate total (`$394.95`) comes from adding quarantined O1019 and O1020.
-- I traced the Q4 difference to the same two orders, both of which ship to Illinois. Including them gives IL `$315.95`; excluding their invalid references gives IL `$277.97`, so MA ranks first at `$278.23`.
+- Traced the Q4 difference to the same two orders, both of which ship to Illinois. Including them gives IL `$315.95`; excluding their invalid references gives IL `$277.97`, so MA ranks first at `$278.23`.
 - I confirmed Q4 uses order shipping state and Q5 consistently uses the same exception definition as Q3. Q5 compares 3 of 6 customers with negative tickets (50.0%) with 1 of 13 customers without negative tickets (7.7%).
 - I ran the pipeline and pytest after the final corrections and inspected the generated reports rather than trusting generated narrative text.
 
@@ -108,11 +126,17 @@ These instructions demonstrate problem decomposition, constrained code generatio
 8. Reconciled independently produced results and documented why alternate totals differ.
 9. Loaded both supplied reference CSVs, enforced supplied-rule coverage, and stored financial columns as `DECIMAL(18,2)`.
 10. Strengthened Q5 with a comparison group while preserving the customer-level explanation and small-sample limitation.
+11. Rewrote report introductions and conclusions so they read as direct project reports rather than instructions to a candidate.
+12. Clarified that `completed` is an order status and does not mean the record passed every quality check.
+13. Simplified and corrected the Mermaid workflow so a full rerun starts from ingestion and business reporting uses the DuckDB exception view.
+14. Documented why DQ001 and DQ004 can pass after duplicate resolution while the original duplicates remain visible as transformation exceptions.
 
 ## What I would improve next
 
 - Add explicit acceptance criteria before each major agent-generated module.
 - Introduce historical customer tracking if the exercise expanded beyond a full-refresh take-home.
 - Expand entity-resolution evidence beyond phone and name before automatically merging different customer IDs.
+- Add a compact data dictionary defining business terms, table grain, keys, and field-level lineage.
+- Add a generated run manifest containing execution time, input row counts, output row counts, and the pipeline version used.
 
 Before accepting the final output, I confirmed 20 raw customer rows became 19 curated customers, 31 raw order rows became 30 canonical orders and 28 curated orders, the completed-revenue bridge had a zero difference, all known defect records appeared under the expected rules, and all 10 automated tests passed.
