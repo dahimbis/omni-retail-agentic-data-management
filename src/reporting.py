@@ -187,9 +187,12 @@ def _order_health_counts(con: duckdb.DuckDBPyConnection) -> tuple[int, int]:
 
 
 def _write_order_health_chart(clear: int, requiring_review: int) -> Path:
-    """Mutually exclusive completed-order health counts."""
+    """Completed-order counts split by identified quality issues."""
     return _save_bar_chart(
-        categories=["Completed orders clear", "Completed orders requiring review"],
+        categories=[
+            "Completed: no identified issues",
+            "Completed: identified issues",
+        ],
         values=[float(clear), float(requiring_review)],
         title="Order health snapshot",
         ylabel="Order count",
@@ -400,8 +403,8 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
     snapshot_df = pd.DataFrame(
         {
             "category": [
-                "Completed orders clear",
-                "Completed orders requiring review",
+                "Completed: no identified issues",
+                "Completed: identified issues",
             ],
             "order_count": [clear_n, review_n],
         }
@@ -411,8 +414,10 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
             [
                 "# Order health snapshot",
                 "",
-                "The categories are mutually exclusive. Requiring review means a completed "
-                "order has at least one order or payment record in `dq_exception_report`.",
+                "`Completed` describes the source order status; it does not mean the "
+                "order passed every quality check. Each completed order appears in one "
+                "group. An order is placed in the identified-issues group when it has "
+                "at least one related entry in `dq_exception_report`.",
                 "",
                 _md_table(snapshot_df),
                 "![Order health snapshot](charts/readme_order_health.png)",

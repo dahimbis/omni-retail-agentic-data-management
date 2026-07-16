@@ -15,7 +15,7 @@ The pipeline processes the supplied OmniRetail datasets and produces:
 
 ## Snapshot
 
-The pipeline generates mutually exclusive counts for completed orders that are clear and completed orders requiring review. The current seven review orders include the five Q3 orders, O1015 for an inactive product, and O1018 because the source contained a duplicate row. See `outputs/order_health_snapshot.md` for the current table. The chart refreshes on every pipeline run without modifying this README.
+`Completed` describes the order status recorded in the source data; it does not mean the order passed every quality check. The snapshot places each completed order in one of two groups: no identified order or payment issues, or at least one identified issue. In the current data, 21 completed orders have no identified issues and 7 have issues. The seven affected orders include the five listed in Q3, O1015 for an inactive product, and O1018 because the source contained a duplicate row. See `outputs/order_health_snapshot.md` for the table. The chart is regenerated whenever the pipeline runs.
 
 ![Order health snapshot](outputs/charts/readme_order_health.png)
 
@@ -190,7 +190,7 @@ Outputs:
 
 Answers are produced by `sql/business_questions.sql` against the curated model. They are not hard-coded. Each pipeline run also writes charts under `outputs/charts/` and embeds them in `business_answers.md` with the **table first, then the chart**.
 
-The instruction in `input_data/expected_business_questions.md` says to answer the questions using the curated model. Therefore, O1019 and O1020 remain in the audit and exception outputs but are excluded from completed-revenue calculations because their customer or product references are invalid.
+The five business questions are answered using the curated model. O1019 and O1020 remain in the audit and exception outputs but are excluded from completed-revenue calculations because their customer or product references are invalid.
 
 **Completed revenue definition:** `is_revenue_eligible = true`, meaning completed status, valid customer and product keys, a parsed order date, and quantity greater than zero. Revenue eligibility is separate from data quality status. For example, an eligible order can still have a payment mismatch or use an inactive product, and that exception remains visible for review.
 
@@ -255,7 +255,7 @@ This regenerates:
 
 ## Updating with new data
 
-This pipeline does a full refresh on each run. It does not watch folders, stream events, or load only new rows.
+This pipeline performs a full refresh each time it runs. New data is processed only after the files in `input_data/` are updated and the pipeline command is run again. It does not support automatic ingestion, streaming, or incremental loading.
 
 To include new data:
 
@@ -311,14 +311,14 @@ Cursor (Auto agent router) was used to plan, generate, and debug the pipeline. C
 - When duplicate IDs appear and the source has no update timestamp, the pipeline keeps the earliest usable row. Exact ties use original source-row order as a deterministic final tie-breaker.
 - Country and state standardization focuses on US values in this sample.
 - Customers with negative tickets have a higher observed exception rate than customers without them, but the dataset is too small for causal claims.
-- There is no file watcher, streaming ingest, or auto-detect for new drops. New data is processed only when someone updates `input_data/` and reruns the pipeline.
-- There is no incremental (delta-only) load and no SCD Type 2 history. Each run reprocesses the full current extract.
+- New data is processed only after the source files are updated and the pipeline is run again; ingestion does not start automatically.
+- There is no incremental (delta-only) load and no SCD Type 2 history. Each run reprocesses all current source files.
 
 ## Conclusion
 
 This project provides OmniRetail with a repeatable local pipeline for customer, product, order, payment, and support-ticket data. It creates the curated tables required for customer-360 analysis and checks whether orders and payments agree.
 
-For the supplied extract, 25 completed orders contribute `$1,243.87` to reported revenue. The reports identify the highest-revenue month, customers, and shipping states, as well as five orders with the reference, payment, or quantity problems requested in Q3. The data-quality report contains 18 exception rows with the affected record, severity, and recommended action.
+For the provided OmniRetail data files, 25 completed orders contribute `$1,243.87` to reported revenue. The reports identify the highest-revenue month, customers, and shipping states, as well as five orders with the reference, payment, or quantity problems requested in Q3. The data-quality report contains 18 exception rows with the affected record, severity, and recommended action.
 
 The business answers use the curated tables, while `outputs/exceptions.csv` keeps the records that require correction. When OmniRetail updates the source files, rerunning the pipeline rebuilds the database and reports using the same documented rules.
 

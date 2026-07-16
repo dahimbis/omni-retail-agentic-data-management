@@ -2,7 +2,7 @@
 
 ## Goal
 
-Build a small local OmniRetail data-management solution that turns operational extracts containing known quality issues into curated, queryable tables, surfaces exceptions with remediation guidance, and answers the five business questions from the cleaned model.
+Build a small local OmniRetail data-management solution that turns operational source files containing known quality issues into curated, queryable tables, surfaces exceptions with remediation guidance, and answers the five business questions from the cleaned model.
 
 ## Architecture
 
@@ -42,21 +42,21 @@ Build a small local OmniRetail data-management solution that turns operational e
 
 ## Known limitations / next improvements
 
-- No streaming ingest and no auto-detect of new files. The pipeline only reads what is already in `input_data/` when `python -m src.pipeline` is run.
+- New source files are processed only when `python -m src.pipeline` is run manually; the pipeline does not provide automatic or streaming ingestion.
 - No incremental (delta-only) loads. Each run does a full refresh and rebuilds `outputs/curated.duckdb` and the report files.
 - No SCD Type 2 history for slowly changing customer attributes.
 - State standardization covers US names/codes only.
 - Fuzzy matching is phone-based only; email or name similarity could be added later.
 - A small dashboard over `exceptions.csv` could help business review in a later version.
 
-**How new data is expected to land today:** update the extract files in `input_data/`, rerun the pipeline, then review the new outputs. That keeps the take-home simple and fully reproducible.
+**How new data is processed:** update the source files in `input_data/`, rerun the pipeline, then review the new outputs. This keeps the process simple and fully reproducible.
 
 ## Final audit fixes
 
 The final review led to concrete hardening work:
 
 1. Payments PMT019 and PMT020 remain visible in `int_payment` and are flagged by DQ015.
-2. Order-health categories are mutually exclusive: completed orders clear vs completed orders requiring review.
+2. Each completed order appears in one order-health group: no identified issues or at least one identified issue.
 3. Transform events that already have a DQ equivalent are excluded from the final exception report, preventing duplicate counts.
 4. Missing payments are registered as DQ014, and payment-key uniqueness is checked by DQ016.
 5. Report generation writes only under `outputs/` and no longer modifies `README.md`.

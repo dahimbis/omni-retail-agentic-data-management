@@ -1,10 +1,10 @@
 # Order health snapshot
 
-The categories are mutually exclusive. Requiring review means a completed order has at least one order or payment record in `dq_exception_report`.
+`Completed` describes the source order status; it does not mean the order passed every quality check. Each completed order appears in one group. An order is placed in the identified-issues group when it has at least one related entry in `dq_exception_report`.
 
 | category | order_count |
 | --- | --- |
-| Completed orders clear | 21 |
-| Completed orders requiring review | 7 |
+| Completed: no identified issues | 21 |
+| Completed: identified issues | 7 |
 
 ![Order health snapshot](charts/readme_order_health.png)
