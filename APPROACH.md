@@ -47,6 +47,7 @@ Build a small local OmniRetail data-management solution that turns operational s
 - No SCD Type 2 history for slowly changing customer attributes.
 - State standardization covers US names/codes only.
 - Fuzzy matching is phone-based only; email or name similarity could be added later.
+- Q5 assumes the input files contain customers in both comparison groups: customers with negative support tickets and customers without them. If either group is absent, the report summary would need additional handling before presenting the comparison.
 - A small dashboard over `exceptions.csv` could help business review in a later version.
 
 **How new data is processed:** update the source files in `input_data/`, rerun the pipeline, then review the new outputs. This keeps the process simple and fully reproducible.
