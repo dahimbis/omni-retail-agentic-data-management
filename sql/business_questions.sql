@@ -49,26 +49,36 @@ WHERE is_revenue_eligible
 GROUP BY 1
 ORDER BY completed_revenue DESC, state;
 
--- Q5a: Summary overlap between negative tickets and exception customers
+-- Q5a: Compare exception rates for customers with and without negative tickets
 WITH exception_customers AS (
   SELECT DISTINCT customer_key FROM vw_order_exceptions
   WHERE customer_key IS NOT NULL
 ),
-neg_tickets AS (
-  SELECT customer_key, count(*) AS negative_ticket_count
+negative_ticket_customers AS (
+  SELECT DISTINCT customer_key
   FROM int_customer_issue
   WHERE lower(sentiment) = 'negative' AND valid_customer
-  GROUP BY 1
+),
+customer_flags AS (
+  SELECT
+    c.customer_key,
+    CASE
+      WHEN n.customer_key IS NOT NULL THEN 'Negative support ticket'
+      ELSE 'No negative support ticket'
+    END AS customer_group,
+    CASE WHEN e.customer_key IS NOT NULL THEN 1 ELSE 0 END AS has_exception
+  FROM dim_customer c
+  LEFT JOIN negative_ticket_customers n ON c.customer_key = n.customer_key
+  LEFT JOIN exception_customers e ON c.customer_key = e.customer_key
 )
 SELECT
-  count(*) AS negative_ticket_customers,
-  sum(CASE WHEN e.customer_key IS NOT NULL THEN 1 ELSE 0 END) AS also_have_exceptions,
-  round(
-    sum(CASE WHEN e.customer_key IS NOT NULL THEN 1 ELSE 0 END) * 1.0 / nullif(count(*), 0),
-    3
-  ) AS overlap_rate
-FROM neg_tickets n
-LEFT JOIN exception_customers e ON n.customer_key = e.customer_key;
+  customer_group,
+  count(*) AS customers,
+  sum(has_exception) AS customers_with_exceptions,
+  round(sum(has_exception) * 1.0 / nullif(count(*), 0), 3) AS exception_rate
+FROM customer_flags
+GROUP BY 1
+ORDER BY CASE WHEN customer_group = 'Negative support ticket' THEN 1 ELSE 2 END;
 
 -- Q5b: Customer-level detail for negative tickets vs exceptions
 WITH exception_customers AS (

@@ -189,12 +189,18 @@ def test_pipeline_reconciles_source_to_curated_counts(pipeline_con):
     ).fetchone()[0]
     assert order_orphans == 0
     assert payment_orphans == 0
+    assert con.execute("SELECT count(*) FROM ref_sttm_target_mapping").fetchone()[0] > 0
+    assert con.execute("SELECT count(*) FROM ref_data_quality_rules").fetchone()[0] > 0
 
 
 def test_all_expected_quality_rules_and_defects(pipeline_con):
     con = pipeline_con
     rules = set(con.execute("SELECT rule_id FROM dq_results").df()["rule_id"])
     assert rules == {f"DQ{i:03d}" for i in range(1, 17)}
+    reference_rules = set(
+        con.execute("SELECT rule_id FROM ref_data_quality_rules").df()["rule_id"]
+    )
+    assert reference_rules <= rules
 
     exceptions = con.execute(
         "SELECT rule_id, record_key FROM dq_exception_report"
@@ -315,11 +321,20 @@ def test_business_question_regressions(pipeline_con):
         "NY": 117.0,
         "FL": 65.99,
     }
-    assert frames[4].iloc[0].to_dict() == {
-        "negative_ticket_customers": 6.0,
-        "also_have_exceptions": 3.0,
-        "overlap_rate": 0.5,
-    }
+    assert frames[4].to_dict("records") == [
+        {
+            "customer_group": "Negative support ticket",
+            "customers": 6,
+            "customers_with_exceptions": 3.0,
+            "exception_rate": 0.5,
+        },
+        {
+            "customer_group": "No negative support ticket",
+            "customers": 13,
+            "customers_with_exceptions": 1.0,
+            "exception_rate": 0.077,
+        },
+    ]
     q5_detail = frames[5].set_index("customer_key")
     assert set(q5_detail.index[q5_detail["has_order_payment_exception"]]) == {
         "C001",
@@ -351,6 +366,30 @@ def test_curated_schema_and_generated_reports(pipeline_con, tmp_path, monkeypatc
         pipeline_con.execute("PRAGMA table_info('fact_order')").df()["name"]
     )
     assert columns == expected_order_columns
+    order_types = dict(
+        pipeline_con.execute("PRAGMA table_info('fact_order')").df()[
+            ["name", "type"]
+        ].itertuples(index=False, name=None)
+    )
+    for column in (
+        "gross_order_amount",
+        "calculated_order_amount",
+        "order_amount_variance",
+    ):
+        assert order_types[column] == "DECIMAL(18,2)"
+
+    product_types = dict(
+        pipeline_con.execute("PRAGMA table_info('dim_product')").df()[
+            ["name", "type"]
+        ].itertuples(index=False, name=None)
+    )
+    payment_types = dict(
+        pipeline_con.execute("PRAGMA table_info('fact_payment')").df()[
+            ["name", "type"]
+        ].itertuples(index=False, name=None)
+    )
+    assert product_types["unit_price"] == "DECIMAL(18,2)"
+    assert payment_types["payment_amount"] == "DECIMAL(18,2)"
 
     generated_dir = tmp_path / "outputs"
     monkeypatch.setattr(reporting, "OUTPUT_DIR", generated_dir)
@@ -381,6 +420,9 @@ def test_curated_schema_and_generated_reports(pipeline_con, tmp_path, monkeypatc
     answers = (generated_dir / "business_answers.md").read_text(encoding="utf-8")
     assert "Q1. What is completed revenue by month?" in answers
     assert "Q4. Which states have the highest completed revenue?" in answers
+    assert "| Negative support ticket | 6 | 3 | 0.500 |" in answers
+    assert "| No negative support ticket | 13 | 1 | 0.077 |" in answers
+    assert "This suggests a visible association in the supplied data" in answers
     reconciliation = (generated_dir / "reconciliation_report.md").read_text(
         encoding="utf-8"
     )

@@ -4,7 +4,7 @@
 
 - **Cursor (Auto agent router)** was my primary agentic coding assistant for planning, implementation, debugging, tests, documentation, and report presentation.
 - **Claude Code** was used to review structure, transformation logic, and submission completeness.
-- **ChatGPT (Sol 5.6)** was used as an additional cross-check of implementation, documentation, and reconciliation decisions.
+- **ChatGPT (GPT-5.6 Sol)** was used as an additional cross-check of implementation, documentation, and reconciliation decisions.
 
 ## Key prompts and task instructions
 
@@ -28,7 +28,7 @@ I used prompts such as the following to direct the work from initial analysis th
 
 5. **Testing and verification**
 
-   > Add automated tests for source-to-curated row counts, referential integrity, duplicate resolution, amount reconciliation, timestamp parsing, known defect keys, all five business answers, and generated report files. Run the tests and investigate any failures instead of changing expected values without checking the source data.
+   > Add automated tests for source-to-curated row counts, reference-table and rule coverage, referential integrity, duplicate resolution, exact monetary types, amount reconciliation, timestamp parsing, known defect keys, all five business answers, and generated report files. Run the tests and investigate any failures instead of changing expected values without checking the source data.
 
 6. **Repository requirement alignment**
 
@@ -62,6 +62,7 @@ These instructions demonstrate problem decomposition, constrained code generatio
 - Modular pipeline code under `src/` for ingestion, transformation, quality checks, reporting, and orchestration.
 - SQL artifacts under `sql/` for the curated model and five business questions.
 - Pytest coverage for transformations, reconciliation, expected defects, business answers, schemas, and generated reports.
+- Reference-table ingestion, supplied-rule coverage validation, and exact decimal financial columns.
 - Drafts of `README.md`, `APPROACH.md`, and this AI usage record, which I reviewed and corrected for accuracy.
 - Generated Markdown reports, CSV exceptions, DuckDB output, and business-facing charts.
 
@@ -75,6 +76,7 @@ These instructions demonstrate problem decomposition, constrained code generatio
 - Report code originally rewrote `README.md`. I removed that side effect so generated files remain under `outputs/`.
 - Transform and DQ exceptions initially counted some source defects twice. I kept one final exception representation for each duplicated semantic issue.
 - DQ002 temporarily treated a missing email as acceptable because the supplied rule said “when available.” I corrected it after re-checking the STTM instruction to flag missing email, so C004 is now reported.
+- Q5 initially reported only the overlap among customers with negative tickets. I added the no-negative-ticket comparison group so the reported relationship is based on two exception rates.
 
 ## Failed attempts and debugging
 
@@ -91,7 +93,7 @@ These instructions demonstrate problem decomposition, constrained code generatio
 - I verified O1024 has no settled payment, PMT029 references nonexistent O9999, and T010 has an invalid timestamp.
 - I confirmed the `$37.98` difference between April's curated revenue (`$356.97`) and the alternate total (`$394.95`) comes from adding quarantined O1019 and O1020.
 - I traced the Q4 difference to the same two orders, both of which ship to Illinois. Including them gives IL `$315.95`; excluding their invalid references gives IL `$277.97`, so MA ranks first at `$278.23`.
-- I confirmed Q4 uses order shipping state and Q5 consistently uses the same exception definition as Q3.
+- I confirmed Q4 uses order shipping state and Q5 consistently uses the same exception definition as Q3. Q5 compares 3 of 6 customers with negative tickets (50.0%) with 1 of 13 customers without negative tickets (7.7%).
 - I ran the pipeline and pytest after the final corrections and inspected the generated reports rather than trusting generated narrative text.
 
 ## Follow-up iterations
@@ -104,6 +106,8 @@ These instructions demonstrate problem decomposition, constrained code generatio
 6. Added deterministic tie-breaking and explicit revenue eligibility.
 7. Added input schema validation, generated charts, and regression tests.
 8. Reconciled independently produced results and documented why alternate totals differ.
+9. Loaded both supplied reference CSVs, enforced supplied-rule coverage, and stored financial columns as `DECIMAL(18,2)`.
+10. Strengthened Q5 with a comparison group while preserving the customer-level explanation and small-sample limitation.
 
 ## What I would improve next
 

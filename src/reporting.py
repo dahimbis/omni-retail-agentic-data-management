@@ -362,6 +362,8 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
         UNION ALL SELECT 'stg_orders', count(*) FROM stg_orders
         UNION ALL SELECT 'stg_payments', count(*) FROM stg_payments
         UNION ALL SELECT 'stg_support_tickets', count(*) FROM stg_support_tickets
+        UNION ALL SELECT 'ref_sttm_target_mapping', count(*) FROM ref_sttm_target_mapping
+        UNION ALL SELECT 'ref_data_quality_rules', count(*) FROM ref_data_quality_rules
         UNION ALL SELECT 'dim_customer', count(*) FROM dim_customer
         UNION ALL SELECT 'dim_product', count(*) FROM dim_product
         UNION ALL SELECT 'fact_order', count(*) FROM fact_order
@@ -501,6 +503,10 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
     top_state_revenue = None
     negative_ticket_customers = None
     overlapping_customers = None
+    negative_ticket_exception_rate = None
+    no_negative_ticket_customers = None
+    no_negative_ticket_exceptions = None
+    no_negative_ticket_exception_rate = None
 
     if len(bq_frames) > 0 and not bq_frames[0].empty:
         q1 = bq_frames[0]
@@ -544,14 +550,25 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
         executive_summary.append(f"- **Geography:** {q4_takeaway}")
 
     if len(bq_frames) > 4 and not bq_frames[4].empty:
-        q5 = bq_frames[4].iloc[0]
-        overlapping_customers = int(q5["also_have_exceptions"])
-        negative_ticket_customers = int(q5["negative_ticket_customers"])
+        q5 = bq_frames[4].set_index("customer_group")
+        negative_group = q5.loc["Negative support ticket"]
+        no_negative_group = q5.loc["No negative support ticket"]
+        overlapping_customers = int(negative_group["customers_with_exceptions"])
+        negative_ticket_customers = int(negative_group["customers"])
+        negative_ticket_exception_rate = float(negative_group["exception_rate"])
+        no_negative_ticket_exceptions = int(
+            no_negative_group["customers_with_exceptions"]
+        )
+        no_negative_ticket_customers = int(no_negative_group["customers"])
+        no_negative_ticket_exception_rate = float(no_negative_group["exception_rate"])
         q5_takeaway = (
-            f"{overlapping_customers} of {negative_ticket_customers} customers with negative tickets "
-            f"also have a Q3 order/payment exception "
-            f"({float(q5['overlap_rate']) * 100:.1f}%). "
-            "This is a descriptive overlap, not evidence that one issue caused the other."
+            f"Customers with negative support tickets have a "
+            f"{negative_ticket_exception_rate * 100:.1f}% order/payment exception rate "
+            f"({overlapping_customers} of {negative_ticket_customers}), compared with "
+            f"{no_negative_ticket_exception_rate * 100:.1f}% "
+            f"({no_negative_ticket_exceptions} of {no_negative_ticket_customers}) among "
+            "customers without negative tickets. This suggests a visible association in "
+            "the supplied data, but the sample is small and does not establish causation."
         )
         executive_summary.append(f"- **Customer support:** {q5_takeaway}")
     executive_summary.append("")
@@ -653,6 +670,10 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
             top_state_revenue,
             negative_ticket_customers,
             overlapping_customers,
+            negative_ticket_exception_rate,
+            no_negative_ticket_customers,
+            no_negative_ticket_exceptions,
+            no_negative_ticket_exception_rate,
         )
     ):
         sections.extend(
@@ -667,11 +688,12 @@ def write_outputs(con: duckdb.DuckDBPyConnection) -> None:
                 f"highest-revenue shipping state at ${top_state_revenue:,.2f}.",
                 "",
                 f"Q3 identifies {exception_order_count} orders with reference, payment, or "
-                "quantity problems. Q5 shows that "
-                f"{overlapping_customers} of {negative_ticket_customers} customers with "
-                "negative tickets also have one of those order or payment problems. "
-                "This overlap identifies customers for follow-up but does not establish "
-                "that the data problem caused the support ticket.",
+                f"quantity problems. Q5 shows a "
+                f"{negative_ticket_exception_rate * 100:.1f}% exception rate for customers "
+                f"with negative tickets, compared with "
+                f"{no_negative_ticket_exception_rate * 100:.1f}% for customers without "
+                "negative tickets. This is a visible association in the supplied data, "
+                "not proof that one issue caused the other.",
                 "",
             ]
         )

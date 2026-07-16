@@ -402,9 +402,24 @@ def build_fuzzy_customer_flags(raw_customers: pd.DataFrame) -> pd.DataFrame:
     )
 
 
-def _register(con: duckdb.DuckDBPyConnection, name: str, frame: pd.DataFrame) -> None:
+def _register(
+    con: duckdb.DuckDBPyConnection,
+    name: str,
+    frame: pd.DataFrame,
+    decimal_columns: tuple[str, ...] = (),
+) -> None:
     con.register(f"{name}_df", frame)
-    con.execute(f"CREATE OR REPLACE TABLE {name} AS SELECT * FROM {name}_df")
+    if decimal_columns:
+        replacements = ", ".join(
+            f'CAST("{column}" AS DECIMAL(18, 2)) AS "{column}"'
+            for column in decimal_columns
+        )
+        con.execute(
+            f"CREATE OR REPLACE TABLE {name} AS "
+            f"SELECT * REPLACE ({replacements}) FROM {name}_df"
+        )
+    else:
+        con.execute(f"CREATE OR REPLACE TABLE {name} AS SELECT * FROM {name}_df")
     con.unregister(f"{name}_df")
 
 
@@ -427,11 +442,29 @@ def transform_all(con: duckdb.DuckDBPyConnection) -> None:
     )
 
     _register(con, "dim_customer", dim_customer)
-    _register(con, "dim_product", dim_product)
-    _register(con, "fact_order", fact_order)
-    _register(con, "fact_payment", fact_payment)
+    _register(con, "dim_product", dim_product, ("unit_price",))
+    _register(
+        con,
+        "fact_order",
+        fact_order,
+        (
+            "gross_order_amount",
+            "calculated_order_amount",
+            "order_amount_variance",
+        ),
+    )
+    _register(con, "fact_payment", fact_payment, ("payment_amount",))
     _register(con, "fact_customer_issue", fact_issue)
-    _register(con, "int_order", int_order)
-    _register(con, "int_payment", int_payment)
+    _register(
+        con,
+        "int_order",
+        int_order,
+        (
+            "gross_order_amount",
+            "calculated_order_amount",
+            "order_amount_variance",
+        ),
+    )
+    _register(con, "int_payment", int_payment, ("payment_amount",))
     _register(con, "int_customer_issue", int_issue)
     _register(con, "transform_exceptions", transform_exceptions)

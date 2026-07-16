@@ -10,7 +10,7 @@ Answers are generated with SQL from `sql/business_questions.sql` against the cur
 - **Top customer:** Lucas Taylor (C010) has the highest completed order value at $194.98.
 - **Order review:** 5 orders require review across the five exception categories requested in the business question.
 - **Geography:** MA is the leading shipping state with $278.23 in completed revenue.
-- **Customer support:** 3 of 6 customers with negative tickets also have a Q3 order/payment exception (50.0%). This is a descriptive overlap, not evidence that one issue caused the other.
+- **Customer support:** Customers with negative support tickets have a 50.0% order/payment exception rate (3 of 6), compared with 7.7% (1 of 13) among customers without negative tickets. This suggests a visible association in the supplied data, but the sample is small and does not establish causation.
 
 ## Q1. What is completed revenue by month?
 
@@ -89,9 +89,10 @@ The exception-customer group uses the same five categories as Q3 so the comparis
 
 ### Summary
 
-| negative_ticket_customers | also_have_exceptions | overlap_rate |
-| --- | --- | --- |
-| 6 | 3 | 0.500 |
+| customer_group | customers | customers_with_exceptions | exception_rate |
+| --- | --- | --- | --- |
+| Negative support ticket | 6 | 3 | 0.500 |
+| No negative support ticket | 13 | 1 | 0.077 |
 
 
 ### Customer detail
@@ -106,10 +107,10 @@ The exception-customer group uses the same five categories as Q3 so the comparis
 | C017 | Harper Lee | 1 | delivery | False |
 
 
-3 of 6 customers with negative tickets also have a Q3 order/payment exception (50.0%). This is a descriptive overlap, not evidence that one issue caused the other.
+Customers with negative support tickets have a 50.0% order/payment exception rate (3 of 6), compared with 7.7% (1 of 13) among customers without negative tickets. This suggests a visible association in the supplied data, but the sample is small and does not establish causation.
 
 ## Conclusion
 
 The supplied data contains 25 completed orders used in revenue reporting, totaling $1,243.87. 2025-05 has the highest monthly revenue at $446.20; Lucas Taylor is the highest-value customer at $194.98; and MA is the highest-revenue shipping state at $278.23.
 
-Q3 identifies 5 orders with reference, payment, or quantity problems. Q5 shows that 3 of 6 customers with negative tickets also have one of those order or payment problems. This overlap identifies customers for follow-up but does not establish that the data problem caused the support ticket.
+Q3 identifies 5 orders with reference, payment, or quantity problems. Q5 shows a 50.0% exception rate for customers with negative tickets, compared with 7.7% for customers without negative tickets. This is a visible association in the supplied data, not proof that one issue caused the other.

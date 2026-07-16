@@ -314,6 +314,24 @@ def run_quality_checks(con: duckdb.DuckDBPyConnection) -> None:
     con.execute("CREATE OR REPLACE TABLE dq_results AS SELECT * FROM dq_results_df")
     con.unregister("dq_results_df")
 
+    missing_reference_rules = [
+        row[0]
+        for row in con.execute(
+            """
+            SELECT r.rule_id
+            FROM ref_data_quality_rules r
+            LEFT JOIN dq_results d ON r.rule_id = d.rule_id
+            WHERE d.rule_id IS NULL
+            ORDER BY r.rule_id
+            """
+        ).fetchall()
+    ]
+    if missing_reference_rules:
+        raise ValueError(
+            "Reference DQ rules missing from implementation: "
+            + ", ".join(missing_reference_rules)
+        )
+
     con.register("dq_exception_report_df", dq_exception_report)
     con.execute(
         "CREATE OR REPLACE TABLE dq_exception_report AS SELECT * FROM dq_exception_report_df"

@@ -18,6 +18,8 @@ Generated from the curated DuckDB model and 16 data quality checks.
 | stg_orders | 31 |
 | stg_payments | 30 |
 | stg_support_tickets | 10 |
+| ref_sttm_target_mapping | 22 |
+| ref_data_quality_rules | 12 |
 | dim_customer | 19 |
 | dim_product | 12 |
 | fact_order | 28 |
@@ -77,9 +79,9 @@ Full detail: `exceptions.csv` (`dq_exception_report`).
 | DQ005 | orders | O1019 | High | invalid customer_key=C999 | Quarantine order; repair customer_key via MDM lookup |
 | DQ006 | orders | O1020 | High | invalid product_key=P999 | Quarantine order; repair product_key in catalog |
 | DQ007 | orders | O1030 | High | completed order quantity=-1 | Hold completed order with non-positive quantity for ops review |
-| DQ008 | orders | O1021 | High | order_total=50.0 calculated=44.0 variance=6.0 | Reconcile order_total vs qty*unit_price; correct pricing feed |
+| DQ008 | orders | O1021 | High | order_total=50.00 calculated=44.00 variance=6.00 | Reconcile order_total vs qty*unit_price; correct pricing feed |
 | DQ009 | payments | PMT029 | High | orphan order_key=O9999 | Reject orphan payment or create missing order if legitimate |
-| DQ010 | payments | PMT021 | High | settled amount=44.0 order_total=50.0 order=O1021 | Investigate settled amount vs completed order total mismatch |
+| DQ010 | payments | PMT021 | High | settled amount=44.00 order_total=50.00 order=O1021 | Investigate settled amount vs completed order total mismatch |
 | DQ014 | orders | O1024 | High | completed order missing settled payment | Create or locate the missing payment before closing the order |
 | DQ015 | payments | PMT019 | High | payment references order excluded from fact_order: O1019 | Hold payment in the audit layer until the related order keys are repaired |
 | DQ015 | payments | PMT020 | High | payment references order excluded from fact_order: O1020 | Hold payment in the audit layer until the related order keys are repaired |

@@ -1,4 +1,4 @@
-"""Load raw OmniRetail files from input_data into DuckDB staging tables."""
+"""Load OmniRetail operational and reference files into DuckDB."""
 
 from __future__ import annotations
 
@@ -58,6 +58,19 @@ REQUIRED_COLUMNS = {
         "category",
         "sentiment",
         "description",
+    },
+    "sttm_target_mapping.csv": {
+        "target_table",
+        "target_column",
+        "source_file",
+        "source_column",
+        "transformation_rule",
+    },
+    "data_quality_rules.csv": {
+        "rule_id",
+        "dataset",
+        "rule_description",
+        "severity",
     },
 }
 
@@ -197,6 +210,8 @@ def ingest_raw(con: duckdb.DuckDBPyConnection, input_dir: Path | None = None) ->
     orders = pd.read_csv(source_paths["orders.csv"], dtype=str)
     payments = pd.read_csv(source_paths["payments.csv"], dtype=str)
     tickets = _load_jsonl(source_paths["support_tickets.jsonl"])
+    sttm = pd.read_csv(source_paths["sttm_target_mapping.csv"], dtype=str)
+    dq_rules = pd.read_csv(source_paths["data_quality_rules.csv"], dtype=str)
 
     for filename, frame in [
         ("customers.csv", customers),
@@ -204,6 +219,8 @@ def ingest_raw(con: duckdb.DuckDBPyConnection, input_dir: Path | None = None) ->
         ("orders.csv", orders),
         ("payments.csv", payments),
         ("support_tickets.jsonl", tickets),
+        ("sttm_target_mapping.csv", sttm),
+        ("data_quality_rules.csv", dq_rules),
     ]:
         _validate_source(source_paths[filename], frame)
 
@@ -213,6 +230,8 @@ def ingest_raw(con: duckdb.DuckDBPyConnection, input_dir: Path | None = None) ->
         ("stg_orders", orders),
         ("stg_payments", payments),
         ("stg_support_tickets", tickets),
+        ("ref_sttm_target_mapping", sttm),
+        ("ref_data_quality_rules", dq_rules),
     ]:
         con.register(f"{name}_df", frame)
         con.execute(f"CREATE OR REPLACE TABLE {name} AS SELECT * FROM {name}_df")

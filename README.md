@@ -76,7 +76,7 @@ flowchart TD
 
 How to read this:
 
-1. **Ingest** loads all CSV and JSONL files into DuckDB.
+1. **Ingest** loads the five operational CSV/JSONL datasets and two reference CSVs into DuckDB.
 2. **Clean and transform** builds curated tables with valid foreign keys, and also keeps a second set of cleaned tables for audit. Those audit tables still include orders or payments with bad customer, product, or order IDs.
 3. **Data quality checks** review both curated and audit tables and write an exception list. Revenue-eligible analytics read from the curated tables.
 4. **Business answers** mainly use the curated tables. Question 3 uses the centralized `vw_order_exceptions` audit view.
@@ -93,8 +93,10 @@ How to read this:
 - `orders.csv`
 - `payments.csv`
 - `support_tickets.jsonl`
+- `sttm_target_mapping.csv` as `ref_sttm_target_mapping`
+- `data_quality_rules.csv` as `ref_data_quality_rules`
 
-Supporting guidance files (`sttm_target_mapping.csv`, `data_quality_rules.csv`, question list) are reference specifications used to implement the Python and SQL logic. The pipeline is not metadata-driven and does not execute those CSV files as configuration. Ingestion validates the five required source files and their required columns before loading them into DuckDB.
+The two reference CSVs are loaded for traceability. After the DQ checks run, the pipeline verifies that every rule ID supplied in `ref_data_quality_rules` has a result in `dq_results`. The transformations and checks remain explicit Python/SQL rather than a metadata-driven rules engine. The Markdown context and question files remain documentation inputs.
 
 ### Curated model
 
@@ -106,6 +108,8 @@ Supporting guidance files (`sttm_target_mapping.csv`, `data_quality_rules.csv`, 
 | `fact_payment` | Payments linked to curated orders |
 | `fact_customer_issue` | Support tickets with category and sentiment |
 | `dq_exception_report` | Rule failures with severity and suggested action |
+
+Financial columns in the physical DuckDB model use `DECIMAL(18,2)`, including product price, order amounts, variance, and payment amount.
 
 The pipeline also keeps audit tables (`int_order`, `int_payment`, `int_customer_issue`). These hold cleaned rows even when a customer, product, or order ID does not match. That way quality checks and business question 3 can still list the problem records.
 
@@ -196,7 +200,7 @@ The instruction in `input_data/expected_business_questions.md` says to answer th
 | 2. Who are the top 10 customers by completed order value? | Join revenue-eligible orders to `dim_customer`, aggregate, sort | Horizontal bar chart |
 | 3. Which orders have payment/FK/quantity exceptions? | List exception orders | Table |
 | 4. Which states have the highest completed revenue? | Group revenue-eligible completed revenue by order shipping state | Bar chart |
-| 5. Relationship between negative tickets and exceptions? | Customer overlap rate and detail | Tables |
+| 5. Relationship between negative tickets and exceptions? | Compare exception rates for customers with and without negative tickets, then show customer detail | Tables |
 
 Current Q1 result under that definition:
 
@@ -210,7 +214,7 @@ Reconciliation notes:
 
 - April revenue is `$356.97`. Adding quarantined orders `O1019` (`$24.99`) and `O1020` (`$12.99`) would produce `$394.95`, but the STTM sends their invalid foreign keys to the exception path rather than `fact_order`.
 - Q4 groups revenue by the order's shipping state, not the customer's home state. O1019 and O1020 both ship to Illinois, so including them would produce `$315.95` for IL. The curated result excludes their `$37.98`, leaving IL at `$277.97`; MA is therefore highest at `$278.23`, a difference of `$0.26`.
-- Q5 uses the same five exception categories as Q3. Three of six valid customers with negative tickets (`C001`, `C002`, and `C018`) have at least one matching order/payment exception.
+- Q5 uses the same five exception categories as Q3. Customers with negative tickets have a 50.0% exception rate (3 of 6), compared with 7.7% (1 of 13) among customers without negative tickets. This is a visible association in the supplied data, but the sample is small and does not show that the exceptions caused the tickets.
 
 See `outputs/business_answers.md` for the full generated answers, tables, and charts.
 
@@ -281,12 +285,12 @@ The ten tests cover:
 2. Customer duplicate resolution
 3. Order duplicate resolution, references, and amount variance
 4. Required input schema validation
-5. Source-to-curated row reconciliation and referential integrity
-6. DQ001 to DQ016 plus the known intentional defects
+5. Source-to-curated row reconciliation, referential integrity, and reference-table loading
+6. DQ001 to DQ016, supplied-rule coverage, and the known intentional defects
 7. Quarantined-payment visibility and bad timestamp preservation
 8. Missing and syntactically invalid email handling
-9. Regression results for business questions Q1 to Q5, including Q5 customer detail
-10. Curated schema columns and generated report/chart files
+9. Regression results for business questions Q1 to Q5, including both Q5 comparison groups and customer detail
+10. Curated schema columns, exact decimal money types, and generated report/chart files
 
 The pipeline and tests are separate commands. `python -m src.pipeline` generates data products; `python -m pytest tests/ -v` verifies them and displays the test names.
 
@@ -300,13 +304,13 @@ The pipeline and tests are separate commands. `python -m src.pipeline` generates
 
 ## Build process notes
 
-Cursor (Auto agent router) was used to plan, generate, and debug the pipeline. Claude Code and ChatGPT (Sol 5.6) were used for review and cross-checks. Generated code was run and verified before acceptance. Details are in `AI_USAGE.md`.
+Cursor (Auto agent router) was used to plan, generate, and debug the pipeline. Claude Code and ChatGPT (GPT-5.6 Sol) were used for review and cross-checks. Generated code was run and verified before acceptance. Details are in `AI_USAGE.md`.
 
 ## Assumptions and limitations
 
 - When duplicate IDs appear and the source has no update timestamp, the pipeline keeps the earliest usable row. Exact ties use original source-row order as a deterministic final tie-breaker.
 - Country and state standardization focuses on US values in this sample.
-- Overlap between negative tickets and exceptions is visible in this sample, but the dataset is too small for causal claims.
+- Customers with negative tickets have a higher observed exception rate than customers without them, but the dataset is too small for causal claims.
 - There is no file watcher, streaming ingest, or auto-detect for new drops. New data is processed only when someone updates `input_data/` and reruns the pipeline.
 - There is no incremental (delta-only) load and no SCD Type 2 history. Each run reprocesses the full current extract.
 

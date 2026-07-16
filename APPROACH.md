@@ -6,7 +6,7 @@ Build a small local OmniRetail data-management solution that turns operational e
 
 ## Architecture
 
-1. **Ingest** (`src/ingest.py`) - load all `input_data` files into DuckDB staging tables with minimal casting.
+1. **Ingest** (`src/ingest.py`) - load five operational datasets into staging tables and two supplied reference CSVs into `ref_*` tables.
 2. **Transform** (`src/transform.py`) - apply STTM rules into `dim_*` / `fact_*` plus intermediate tables used by DQ.
 3. **Quality** (`src/quality_checks.py`) - evaluate DQ001 to DQ016 into `dq_results` and `dq_exception_report`. DQ013 to DQ016 extend the provided reference rules for inactive products, missing payments, quarantined-order payments, and payment-key uniqueness.
 4. **Reporting** (`src/reporting.py`) - write Markdown/CSV outputs and generated charts; business answers come from `sql/business_questions.sql`.
@@ -21,6 +21,7 @@ Build a small local OmniRetail data-management solution that turns operational e
 | `fact_order` | Curated fact keeps valid customer+product IDs only. Audit table `int_order` keeps invalid-ID rows for exception inventory. Adds calculated amount, variance, and `is_revenue_eligible`. |
 | `fact_payment` / tickets | Repeated payment IDs are resolved using payment timestamp and source-row order. Invalid references are excluded from curated facts and retained in audit tables. Payments linked to quarantined orders are explicitly flagged. Tickets with bad timestamps remain available with a null curated date and a DQ exception. |
 | Revenue metrics | `is_revenue_eligible` requires completed status, valid keys, a parsed date, and positive quantity. O1030 remains in `fact_order` for audit but is excluded from revenue because its quantity is negative. Payment and inactive-product exceptions remain visible without changing the requested order-revenue definition. |
+| Financial types | Product price, order amounts, order variance, and payment amount are stored as `DECIMAL(18,2)` in DuckDB so financial values use exact two-decimal representation. |
 
 ## Assumptions
 
@@ -33,7 +34,7 @@ Build a small local OmniRetail data-management solution that turns operational e
 ## Tradeoffs
 
 - Python drives transforms for mixed timestamps and readability; SQL files document the target model and business answers.
-- `sttm_target_mapping.csv` and `data_quality_rules.csv` are reference specifications. The current implementation is intentionally explicit Python/SQL, not a metadata-driven rules engine.
+- `sttm_target_mapping.csv` and `data_quality_rules.csv` are loaded as reference tables for traceability and rule-coverage validation. The implementation remains explicit Python/SQL rather than a metadata-driven rules engine.
 - Invalid orders are excluded from curated facts (cleaner analytics) but remain in intermediate tables and the exception report (auditable).
 - Kept dependencies minimal: DuckDB, pandas, matplotlib, pytest.
 - `requirements.txt` communicates supported minimums; `requirements-lock.txt` records the exact versions used for final verification.
@@ -63,6 +64,9 @@ The final review led to concrete hardening work:
 7. Business query tie-breaking is deterministic, and Q4 explicitly uses order shipping state.
 8. Automated regression tests cover Q1 to Q5, Q5 customer details, email validation, expected defect keys, schemas, reconciliation, and generated reports.
 9. A final cross-solution reconciliation restored the C004 missing-email exception required by the STTM and documented why April revenue, Q4 geography, and Q5 overlap can differ under other definitions.
+10. Q5 now compares exception rates for customers with negative tickets (50.0%) and without them (7.7%), while retaining the customer-level detail.
+11. Both supplied reference CSVs are loaded into DuckDB, and the pipeline checks that every supplied DQ rule has a result.
+12. Physical monetary columns use `DECIMAL(18,2)` and the tests verify those types.
 
 ## Verification performed
 
